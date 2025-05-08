@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Main function to initiate cNMF calculation using the constrainedmf
+package from here
+
+https://github.com/NSLS-II/constrained-matrix-factorization
+
+please follow installation instructions from there.
+
+Licensed under GNU GPL3, see license file LICENSE_GPL3.
+"""
+
+from data_processing import signal_process, get_eds_average
+import torch
+import numpy as np
+from constrainedmf.nmf.models import NMF
+from progress.bar import Bar
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+
+
+def constrained_nmf(X, components):
+    input_H = [
+        torch.tensor(component[None, :], dtype=torch.float) for component in components
+    ]
+    #print(X.shape)
+    #X.shape=(1,pixel width*height),W.shape=(1,2),H.shape(2,pixel width*height)
+    nmf = NMF(
+        X.shape,
+        n_components=2,
+        initial_components=input_H,
+        fix_components=[True for _ in range(len(input_H))],
+    )
+    nmf.fit(torch.tensor(X), beta=2)#beta=2 for Euclidean distance; learning curve of loss over timesteps
+    return nmf
+
+def normalize_sum(lst):
+    """
+    return normalization values based on percentages
+
+    Args:
+        lst (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    if not lst:
+        return []
+    total = sum(lst)
+    if total == 0:
+        return [0.0 for _ in lst]
+    return [x / total for x in lst]
+
+def run_cNMF(ROI, components):
+    file_list = ROI #path for EBSPs
+    weights = []
+    mse=[]
+    r_square=[]
+    bar = Bar("Processing", max=len(file_list)) # initialize a progress bar with a total of "filelist" length iterations
+    H = torch.tensor(components, dtype=torch.float) 
+    for file in file_list:
+        bar.next()
+
+        input_X = signal_process(file, flag="ROI")  #ROI width*height EBSP with feature dimension of pixel width*height; But here is input_X 1*pixel width*height
+        
+        OUTPUT = constrained_nmf(input_X, components)
+        
+        learned_weights = OUTPUT.W.detach().numpy()
+        
+        X=torch.tensor(input_X,dtype=torch.float)
+        X_reconstructed = OUTPUT.reconstruct(H, OUTPUT.W)
+        
+        weights.append(learned_weights)
+        mse.append(Metrics(X_reconstructed,X)[0])
+        r_square.append(Metrics(X_reconstructed,X)[1])
+        
+    
+
+    bar.finish()
+    
+    return weights,mse,r_square
+
+def run_cNMF_mixeds(ROI, components_combined, loc, edax):
+    file_list = ROI #path for EBSPs
+    weights = []
+    mse=[]
+    r_square=[]
+    i = 0
+    bar = Bar("Processing", max=len(file_list)) # initialize a progress bar with a total of "filelist" length iterations
+    H = torch.tensor(components_combined, dtype=torch.float) 
+    for file in file_list:
+        bar.next()
+
+        input_X = signal_process(file, flag="ROI")  
+        # print(np.shape(input_X))
+        x_loc = loc[i][0]
+        y_loc = loc[i][1]
+        eds_values = get_eds_average(x_loc, y_loc, edax)
+        # print(eds_values)
+        # normalization
+        eds_values_nor = normalize_sum(eds_values)
+        # print(eds_values_nor)
+        # print(np.shape(eds_values))
+        eds_values = np.array(eds_values_nor).reshape(1,-1)
+        # print(eds_values)
+        i+=1
+        input_X = np.hstack((input_X, eds_values))
+        # print(input_X)
+        OUTPUT = constrained_nmf(input_X, components_combined)
+        
+        learned_weights = OUTPUT.W.detach().numpy()
+        
+        X=torch.tensor(input_X,dtype=torch.float)
+        X_reconstructed = OUTPUT.reconstruct(H, OUTPUT.W)
+        
+        weights.append(learned_weights)
+        mse.append(Metrics(X_reconstructed,X)[0])
+        r_square.append(Metrics(X_reconstructed,X)[1])
+        
+    bar.finish()
+    
+    return weights,mse,r_square
+
+
+def Metrics(X_reconstructed, input_X):
+    
+    #mse
+    mse = torch.mean(X_reconstructed - input_X) ** 2
+    
+    #R_square
+    ss_total = torch.sum((input_X - torch.mean(input_X)) ** 2)
+    ss_residual = torch.sum((input_X - X_reconstructed) ** 2)
+    r_square = 1 - (ss_residual / ss_total)   
+
+    return mse,r_square
+
+
+
+def _plot_cnmf(weights, coord_dict, loc_roi):
+    
+    weights = np.array(weights).squeeze(axis=1) 
+    loc_roi = np.asarray(loc_roi)
+    assert loc_roi.shape[0] == weights.shape[0], "make sure the number of samples/rows of pca scores the same with loc"
+    assert loc_roi.shape[1] == 2, "loc should be list of (n_samples, 2)"
+    
+    roi_labels = [coord_dict.get((x, y), -1)
+    for x, y in loc_roi]
+    
+    roi_labels = np.array(roi_labels)
+    
+    # corresponding phase mapping
+    name_map = {
+        1: 'Fe3O4',
+        2: 'FeO',
+        3: 'Fe'
+        }
+
+    plt.figure(figsize=(10,8))
+    scatter = plt.scatter(weights[:, 0], weights[:, 1], c=roi_labels, cmap='Set1', alpha=0.7, edgecolors='k')
+    
+    unique_ids = sorted(set(roi_labels.tolist()))
+    
+    # add legends
+    handles = []
+    for pid in unique_ids:
+        if pid in name_map:
+            color = scatter.cmap(scatter.norm(pid))
+            patch = mpatches.Patch(color=color, label=name_map[pid])
+            handles.append(patch)
+    plt.legend(handles=handles, title='Phase')
+    
+    plt.xlabel("cNMF Component 1")
+    plt.ylabel("cNMF Component 2")
+    plt.title("cNMF of EBSD Kikuchi Patterns by Phase index")
+    plt.show()
