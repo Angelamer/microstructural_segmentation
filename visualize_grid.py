@@ -39,7 +39,7 @@ def read_data(path):
 
 #select the pattern within the ROI
 #return list of (path+key)= the location of each EBSP
-def set_component(x_range, y_range, path, grid):
+def set_component(x_range, y_range, path, grid, plot_flag= True):
     x_l = x_range[0]
     x_u = x_range[1]
 
@@ -58,9 +58,12 @@ def set_component(x_range, y_range, path, grid):
             # path+key = file location?
             roi.append((path + key, x, y))
     img = mpimg.imread(path + "Scan3_cropped_phasemap.png")
-    utils._plot_component(roi, grid, img)
+    if plot_flag:
+        utils._plot_component(roi, grid, img)
+    else:
+        pass
     # print(roi)
-    return [lis[0] for lis in roi]
+    return [lis[0] for lis in roi], [lis[1:] for lis in roi]
 
 
 # Set region of interest (ROI)
