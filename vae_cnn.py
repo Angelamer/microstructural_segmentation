@@ -142,8 +142,8 @@ def train_vae(dataloader, model, device, optimizer, num_epochs=20):
     print("Training finished.")
     
     # --- Save the model ---
-    # torch.save(model.state_dict(), 'vae_model_leaky_tanh.pth')
-    # print("Model saved to vae_model_leaky_tanh.pth")
+    torch.save(model.state_dict(), 'vae_model_leaky_tanh.pth')
+    print("Model saved to vae_model_leaky_tanh.pth")
 
 
 

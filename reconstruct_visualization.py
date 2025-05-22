@@ -7,6 +7,50 @@ import torch
 import matplotlib.patches as mpatches
 
 
+def get_latent_features(model, dataloader, device, phase_dict,max_points=10):
+    """
+    Generates latent vectors (mu)
+    """
+    model.eval() # Set model to evaluation mode
+    latents = []
+    all_labels = []
+    all_x_indices = []
+    all_y_indices = []
+    # print(f"Generating latent vectors (mu) for visualization (up to {max_points} points)...")
+
+    count = 0
+    with torch.no_grad():
+        
+        for batch_idx, (batch_indices, data) in enumerate(dataloader):
+            
+            x_idx_tensor, y_idx_tensor = batch_indices
+            data_batch = data.to(device)
+            
+            # Get mu from the encoder
+            mu, _ = model.encode(data_batch) # Pass through encoder only
+            latents.append(mu.cpu().numpy())
+            
+            #get the phase id
+            x_list = x_idx_tensor.tolist()
+            y_list = y_idx_tensor.tolist()
+            batch_labels = [
+            phase_dict.get((x, y), -1)
+            for x, y in zip(x_list, y_list)
+            ]
+            all_labels.extend(batch_labels)
+            all_x_indices.extend(x_list)
+            all_y_indices.extend(y_list)
+
+            count += len(data_batch)
+            if count >= max_points:
+                print(f"Reached {count} points, stopping latent vector generation.")
+                break
+
+    # Concatenate all mu vectors
+    latents = np.concatenate(latents, axis=0)
+    all_labels = np.array(all_labels)
+    print(f"Collected {latents.shape[0]} latent vectors (mu) with dimension {latents.shape[1]}")
+    return latents, all_labels, all_x_indices, all_y_indices
 
 # --- Image Reconstruction Visualization ---
 def reconstruct_and_visualize(model, device, dataloader, num_images=5):
@@ -57,46 +101,7 @@ def reconstruct_and_visualize(model, device, dataloader, num_images=5):
 # --- Latent Space Visualization ---
 def latent_space_visualize(model, dataloader, device, phase_dict, method='tsne', max_points=10, components_coords=None):
     """Generates latent vectors (mu) and visualizes them using t-SNE."""
-    model.eval() # Set model to evaluation mode
-    latents = []
-    all_labels = []
-    all_x_indices = []
-    all_y_indices = []
-    
-    print(f"Generating latent vectors (mu) for visualization (up to {max_points} points)...")
-
-    count = 0
-    with torch.no_grad():
-        
-        for batch_idx, (batch_indices, data) in enumerate(dataloader):
-            
-            x_idx_tensor, y_idx_tensor = batch_indices
-            data_batch = data.to(device)
-            
-            # Get mu from the encoder
-            mu, _ = model.encode(data_batch) # Pass through encoder only
-            latents.append(mu.cpu().numpy())
-            
-            #get the phase id
-            x_list = x_idx_tensor.tolist()
-            y_list = y_idx_tensor.tolist()
-            batch_labels = [
-            phase_dict.get((x, y), -1)
-            for x, y in zip(x_list, y_list)
-            ]
-            all_labels.extend(batch_labels)
-            all_x_indices.extend(x_list)
-            all_y_indices.extend(y_list)
-
-            count += len(data_batch)
-            if count >= max_points:
-                print(f"Reached {count} points, stopping latent vector generation.")
-                break
-
-    # Concatenate all mu vectors
-    latents = np.concatenate(latents, axis=0)
-    all_labels = np.array(all_labels)
-    print(f"Collected {latents.shape[0]} latent vectors (mu) with dimension {latents.shape[1]}")
+    latents, all_labels, all_x_indices, all_y_indices = get_latent_features(model, dataloader, device, phase_dict, max_points)
 
     if latents.shape[0] < 2:
         print("Not enough points to perform t-SNE.")
@@ -175,7 +180,68 @@ def latent_space_visualize(model, dataloader, device, phase_dict, method='tsne',
             handles.append(patch)
     plt.legend(handles=handles, title='Phase')
     plt.show()
+    
+def visualize_latent_maps(latents, latent_dim, cmap='viridis', suptitle='Latent Feature Maps',highlight_idx=None, save_idx=None, save_dir='.',save_prefix='latent_map'):
+    """
+    Create latent space feature maps. Each map represents the space distribution of each latent space.
+    Display the specified feature colormap and save 
 
+    Args:
+        latents (np.ndarray): shape (samples number, latent dimensions), in the case, latent dimensions are 16, modified when it changed
+    """
+    # check the latent dimensions
+    assert latents.ndim == 2 and latents.shape[0] == 31*31 and latents.shape[1] == latent_dim, \
+        f"shape of latents has to be (961*{latent_dim})"
+
+    # reshape
+    feature_maps = latents.T.reshape(latent_dim, 31, 31)
+    
+    all_idx = list(range(latent_dim))
+    if highlight_idx is not None:
+        if isinstance(highlight_idx, int):
+            plot_idx = [highlight_idx]
+        else:
+            plot_idx = list(highlight_idx)
+    else:
+        plot_idx = all_idx
+
+    # create the subplots grid
+    n = len(plot_idx)
+    n_cols = min(4, n)
+    n_rows = int(np.ceil(n / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*3, n_rows*3))
+    axes = axes.flatten()
+
+    # plot the specified maps
+    for ax_i, idx in enumerate(plot_idx):
+        ax = axes[ax_i]
+        im = ax.imshow(feature_maps[idx], cmap=cmap, origin='lower')
+        ax.set_title(f'Latent Dim #{idx+1}', fontsize=10)
+        ax.axis('off')
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        
+        if save_idx is not None:
+            save_list = [save_idx] if isinstance(save_idx, int) else list(save_idx)
+            if idx in save_list:
+                # create single figure
+                fig2, ax2 = plt.subplots(figsize=(4,4))
+                im2 = ax2.imshow(feature_maps[idx], cmap=cmap, origin='lower')
+                ax2.set_title(f'Latent Dim #{idx+1}', fontsize=12)
+                ax2.axis('off')
+                fig2.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
+                fname = f"{save_prefix}_{idx+1}.png"
+                fig2.savefig(f"{save_dir}/{fname}", dpi=300, bbox_inches='tight')
+                plt.close(fig2)
+
+    # hide the extra ones
+    for j in range(len(plot_idx), len(axes)):
+        axes[j].axis('off')
+
+    fig.suptitle(suptitle, fontsize=16)
+    plt.tight_layout(rect=[0,0,1,0.96])
+    plt.show()
+
+    return fig, axes
 #def latent_space_visualize_cnmf(model, dataloader, device, phase_dict, constraints_mu, max_points=100):
     
     """
