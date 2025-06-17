@@ -83,6 +83,10 @@ def evaluate_components(candidate_pair, ROI, path, grid):
 # optimization cycle
 def optimize_paired_components(ROI, path, grid, x_range_r1, y_range_r1, x_range_r2, y_range_r2, grid_size=2, step=1, top_k=3):
     
+    """
+    Search and optimize paired regions (component pairs), evaluate the model performance (such as MSE and R2) for each pair,
+    and return the best results.
+    """
     paired_candidates = generate_paired_candidates(x_range_r1, y_range_r1, x_range_r2, y_range_r2, grid_size, step) 
     # print(paired_candidates)
     results = []

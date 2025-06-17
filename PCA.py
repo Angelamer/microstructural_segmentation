@@ -19,6 +19,7 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.patches import Rectangle
 
 
+
 def run_PCA(ROI,components):
     file_list = ROI
     bar = Bar("Processing", max=len(file_list))
@@ -40,10 +41,29 @@ def run_PCA(ROI,components):
 
     print("Explained Variance Ratio:")
     print(pca.explained_variance_ratio_)
-    return pca_scores
+    return pca_scores, pca
 
+def plot_explained_variance(pca):
+    """Plot the explained variance ratio and cumulative curve"""
+    explained_variance = pca.explained_variance_ratio_
+    cumulative_variance = np.cumsum(explained_variance)
+    
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(1, len(explained_variance)+1), explained_variance, 
+            alpha=0.5, align='center', label='Individual Explained Variance')
+    plt.step(range(1, len(cumulative_variance)+1), cumulative_variance, 
+            where='mid', label='Cumulative Explained Variance')
+    
+    plt.axhline(y=0.95, color='r', linestyle='--', label='95% Explained Variance')
+    plt.xlabel('Principal Component Index')
+    plt.ylabel('Explained Variance Ratio')
+    plt.title('PCA Explained Variance')
+    plt.legend(loc='best')
+    plt.grid(True)
+    plt.show()
 
-# def _plot_pca(pca_scores, coord_dict, loc_roi):
+"""
+def _plot_pca(pca_scores, coord_dict, loc_roi):
     
     loc_roi = np.asarray(loc_roi)
     assert loc_roi.shape[0] == pca_scores.shape[0], "make sure the number of samples/rows of pca scores the same with loc"
@@ -81,7 +101,7 @@ def run_PCA(ROI,components):
     plt.ylabel("Principal Component 2")
     plt.title("PCA of EBSD Kikuchi Patterns by Phase index")
     plt.show()
-
+"""
 def _plot_reference(pos_list, loc_roi, ax, pca_scores, marker, label):
         if pos_list is not None:
             # change the coordinates to the sample index
@@ -225,13 +245,15 @@ def _plot_pca(pca_scores, coord_dict, loc_roi, ref1_pos=None, ref2_pos=None, ano
 # detect the anomalies out of the confidence eclipse
 def detect_anomalies_pca(pca_scores, coord_dict, loc_roi):
     """
-    detect the anomalies out of the confidence eclipse and return the coordinates
+    detect the anomalies out of the confidence eclipse and return the coordinates 
+    phase category is obtained from the indexed file (manual cluster/ group)
     """
     loc_roi = np.asarray(loc_roi)
     labels = np.array([coord_dict.get((x, y), -1) for x, y in loc_roi])
-    
+    n_dim = pca_scores.shape[1]
     anomalies = []
     anomalies_coords = []
+    
     for phase in np.unique(labels):
         mask = (labels == phase)
         if mask.sum() < 2: continue
@@ -240,11 +262,14 @@ def detect_anomalies_pca(pca_scores, coord_dict, loc_roi):
         data = pca_scores[mask]
         cov = np.cov(data.T)
         mean = np.mean(data, axis=0)
-        inv_cov = np.linalg.inv(cov)
+        try:
+            inv_cov = np.linalg.inv(cov)
+        except np.linalg.LinAlgError:
+            inv_cov = np.linalg.pinv(cov)
         
         diff = data - mean
         distances = np.sum(diff @ inv_cov * diff, axis=1)
-        threshold = chi2.ppf(0.95, 2)  # 95% confidence interval
+        threshold = chi2.ppf(0.95, n_dim)  # 95% confidence interval
         
         # append the pca scores of the anomalies
         phase_anomalies = data[distances > threshold]
@@ -340,9 +365,9 @@ def plot_weight_map_pca(pca_scores, loc_roi, anomalies_coords=None, ref1_pos=Non
     cbar = plt.colorbar(im)
     cbar.set_ticks([-abs_max, 0, abs_max])
     cbar.ax.set_yticklabels([
-        f'Component {component+1}\n(green)', 
-        'Neutral\n(white)', 
-        f'Component {2 if component==0 else 1}\n(red)'
+        f'pca score = {-abs_max}\n(green)', 
+        'pca score = 0\n(white)', 
+        f'pca score = {abs_max}\n(red)'
     ], fontsize=10)
 
     

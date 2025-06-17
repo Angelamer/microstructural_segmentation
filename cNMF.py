@@ -24,6 +24,8 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.patches import Rectangle
 
 
+
+
 def constrained_nmf(X, components):
     input_H = [
         torch.tensor(component[None, :], dtype=torch.float) for component in components
@@ -82,7 +84,7 @@ def run_cNMF(ROI, components):
     
 
     bar.finish()
-    
+    weights = np.array(weights).squeeze(axis=1) 
     return weights,mse,r_square
 
 def run_cNMF_mixeds(ROI, components_combined, loc, edax):
@@ -123,7 +125,7 @@ def run_cNMF_mixeds(ROI, components_combined, loc, edax):
         r_square.append(Metrics(X_reconstructed,X)[1].detach().numpy())
         
     bar.finish()
-    
+    weights = np.array(weights).squeeze(axis=1) 
     return weights,mse,r_square
 
 
@@ -224,7 +226,6 @@ def _plot_cnmf(weights, coord_dict, loc_roi, ref1_pos=None, ref2_pos=None, anoma
         anomalies : coordinates of anomalies
         
     """
-    weights = np.array(weights).squeeze(axis=1) 
     loc_roi = np.asarray(loc_roi)
     assert loc_roi.shape[0] == weights.shape[0], "make sure the number of samples/rows of pca scores the same with loc"
     assert loc_roi.shape[1] == 2, "loc should be list of (n_samples, 2)"
@@ -326,11 +327,11 @@ def detect_anomalies_cnmf(weights, coord_dict, loc_roi):
     detect the anomalies out of the confidence eclipse and return the coordinates
     """
     loc_roi = np.asarray(loc_roi)
-    weights = np.array(weights).squeeze(axis=1) 
     labels = np.array([coord_dict.get((x, y), -1) for x, y in loc_roi])
-    
+    n_dim = weights.shape[1]
     anomalies = []
     anomalies_coords = []
+
     for phase in np.unique(labels):
         mask = (labels == phase)
         if mask.sum() < 2: continue
@@ -339,11 +340,14 @@ def detect_anomalies_cnmf(weights, coord_dict, loc_roi):
         data = weights[mask]
         cov = np.cov(data.T)
         mean = np.mean(data, axis=0)
-        inv_cov = np.linalg.inv(cov)
+        try:
+            inv_cov = np.linalg.inv(cov)
+        except np.linalg.LinAlgError:
+            inv_cov = np.linalg.pinv(cov)
         
         diff = data - mean
         distances = np.sum(diff @ inv_cov * diff, axis=1)
-        threshold = chi2.ppf(0.95, 2)  # 95% confidence interval
+        threshold = chi2.ppf(0.95, n_dim)  # 95% confidence interval
         
         # append the pca scores of the anomalies
         phase_anomalies = data[distances > threshold]
