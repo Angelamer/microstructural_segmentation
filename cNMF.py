@@ -394,7 +394,7 @@ def _add_boxes(loc_roi, coords, ax, color, linewidth):
             ax.add_patch(rect)
     
     
-def plot_weight_map_cnmf(weights, loc_roi, anomalies_coords=None, ref1_pos=None, ref2_pos=None, component=0):
+def plot_weight_map_cnmf(weights, loc_roi, anomalies_coords=None, ref1_pos=None, ref2_pos=None, component=0, boundary_locs=None):
     """Plot the weight map with locations of references and anomalies"""
     loc_roi = np.asarray(loc_roi)
     # weights = np.array(weights).squeeze(axis=1) 
@@ -439,7 +439,11 @@ def plot_weight_map_cnmf(weights, loc_roi, anomalies_coords=None, ref1_pos=None,
             Line2D([0], [0], color='blue', lw=3, label='Reference 2')
         )
         _add_boxes(loc_roi, ref2_pos, ax, 'blue', 3)  
-        
+    if boundary_locs is not None and len(boundary_locs) > 0:
+        legend_elements.append(
+            Line2D([0], [0], color='black', lw=2, linestyle='dashed', label='Boundary Points')
+        )
+        _add_boxes(loc_roi, boundary_locs, ax, 'black', 2)    
     if legend_elements:
         ax.legend(handles=legend_elements, loc='lower center',  bbox_to_anchor=(0.5, -0.1), ncol=3)
     

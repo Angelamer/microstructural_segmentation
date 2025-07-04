@@ -102,15 +102,30 @@ def _plot_pca(pca_scores, coord_dict, loc_roi):
     plt.title("PCA of EBSD Kikuchi Patterns by Phase index")
     plt.show()
 """
-def _plot_reference(pos_list, loc_roi, ax, pca_scores, marker, label):
-        if pos_list is not None:
-            # change the coordinates to the sample index
-            idx = [np.where((loc_roi == pos).all(axis=1))[0][0] for pos in pos_list]
-            ax.scatter(
-                pca_scores[idx, 0], pca_scores[idx, 1],
-                s=200, marker=marker, edgecolor='black', 
-                facecolor='none', linewidths=2, label=label
-            )
+def _plot_reference(ref_pos, loc_roi, ax, pca_scores, marker, label):
+        if ref_pos is None or len(ref_pos) == 0:
+            return
+        
+        ref_indices = []
+        for pos in ref_pos:
+            idx = np.where((loc_roi[:, 0] == pos[0]) & (loc_roi[:, 1] == pos[1]))[0]
+            if len(idx) > 0:
+                ref_indices.append(idx[0])
+        
+        if len(ref_indices) > 0:
+            ref_pca = pca_scores[ref_indices]
+            if dim == 3:
+                ax.scatter(
+                    ref_pca[:, 0], ref_pca[:, 1], ref_pca[:, 2],
+                    s=150, marker=marker, c='gold', edgecolor='k',
+                    linewidth=1.5, zorder=10, label=label
+                )
+            else:
+                ax.scatter(
+                    ref_pca[:, 0], ref_pca[:, 1],
+                    s=150, marker=marker, c='gold', edgecolor='k',
+                    linewidth=1.5, zorder=10, label=label
+                )
             
 def _add_confidence_ellipse(ax, data, color, alpha):
         """Add the confidence ellipse for each category"""
@@ -135,7 +150,7 @@ def _add_confidence_ellipse(ax, data, color, alpha):
         )
         ax.add_patch(ell)
     
-def _plot_pca(pca_scores, coord_dict, loc_roi, ref1_pos=None, ref2_pos=None, anomalies=None, ellipse_alpha=0.3):
+def _plot_pca(pca_scores, coord_dict, loc_roi, dim=2, ref1_pos=None, ref2_pos=None, anomalies=None, ellipse_alpha=0.3):
     """
     PCA scatter map: visualization enhancement
 
@@ -148,6 +163,8 @@ def _plot_pca(pca_scores, coord_dict, loc_roi, ref1_pos=None, ref2_pos=None, ano
         anomalies : coordinates of anomalies
         
     """
+    assert dim in [2, 3]
+    assert pca_scores.shape[1] >= dim, f"pca_scores must have at least {dim} components."
     
     loc_roi = np.asarray(loc_roi)
     assert loc_roi.shape[0] == pca_scores.shape[0], "make sure the number of samples/rows of pca scores the same with loc"
@@ -167,7 +184,11 @@ def _plot_pca(pca_scores, coord_dict, loc_roi, ref1_pos=None, ref2_pos=None, ano
     phase_colors = {1: 'red', 2: 'blue', 3: 'green'}
     default_color = 'gray'
     
-    fig, ax = plt.subplots(figsize=(15, 10))
+    if dim == 3:
+        fig = plt.figure(figsize=(15, 10))
+        ax = fig.add_subplot(111, projection='3d')
+    else:
+        fig, ax = plt.subplots(figsize=(15, 10))
     colors = []
     for l in roi_labels:
         if l in phase_colors:
@@ -176,30 +197,44 @@ def _plot_pca(pca_scores, coord_dict, loc_roi, ref1_pos=None, ref2_pos=None, ano
             colors.append(default_color)
     
     # plot the main scatter
-    main_scatter = ax.scatter(
-        pca_scores[:, 0], pca_scores[:, 1], 
-        c=colors, alpha=0.7, edgecolors='k', label='Samples'
-    )
+    if dim == 3:
+        main_scatter = ax.scatter(
+            pca_scores[:, 0], pca_scores[:, 1], pca_scores[:, 2],
+            c=colors, alpha=0.7, edgecolors='k', label='Samples'
+        )
+    else:
+        main_scatter = ax.scatter(
+            pca_scores[:, 0], pca_scores[:, 1], 
+            c=colors, alpha=0.7, edgecolors='k', label='Samples'
+        )
     # mark the reference point
     _plot_reference(ref1_pos, loc_roi, ax, pca_scores, '*', 'Reference 1')
     _plot_reference(ref2_pos, loc_roi, ax, pca_scores, 'P', 'Reference 2')
     
     
-    # plot the confidence eclipse
-    for phase, color in phase_colors.items():
-        mask = (roi_labels == phase)
-        if mask.sum() > 1: 
-            _add_confidence_ellipse(
-                ax, pca_scores[mask], color, ellipse_alpha
-            )
+    # plot the confidence ellipse (only for 2D)
+    if dim == 2:
+        for phase, color in phase_colors.items():
+            mask = (roi_labels == phase)
+            if mask.sum() > 1: 
+                _add_confidence_ellipse(
+                    ax, pca_scores[mask, :2], color, ellipse_alpha
+                )
     
     # anomalies plotting
     if anomalies is not None:
-        ax.scatter(
-            anomalies[:, 0], anomalies[:, 1], 
-            s=80, marker='X', c='none', 
-            edgecolor='purple', label='Anomalies',linewidths=1.5
-        )
+        if dim ==3:
+            ax.scatter(
+                    anomalies[:, 0], anomalies[:, 1], anomalies[:, 2],
+                    s=80, marker='X', c='none', 
+                    edgecolor='purple', label='Anomalies', linewidths=1.5
+                )
+        else:
+            ax.scatter(
+                anomalies[:, 0], anomalies[:, 1], 
+                s=80, marker='X', c='none', 
+                edgecolor='purple', label='Anomalies',linewidths=1.5
+            )
     # legend 
     legend_elements = []
     existing_phases = [pid for pid in np.unique(roi_labels) 
@@ -239,7 +274,10 @@ def _plot_pca(pca_scores, coord_dict, loc_roi, ref1_pos=None, ref2_pos=None, ano
     if legend_elements:
         ax.legend(handles=legend_elements, title='Legend')
     ax.set_xlabel("Principal Component 1"), ax.set_ylabel("Principal Component 2")
+    if dim == 3:
+        ax.set_zlabel("Principal Component 3")
     ax.set_title("PCA Visualization with Annotations")
+    plt.tight_layout()
     plt.show()
 
 # detect the anomalies out of the confidence eclipse
