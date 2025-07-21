@@ -287,46 +287,89 @@ def find_best_reference_window(top_samples_per_cluster, cluster_labels, variatio
 
 # plot the heatmap by the cluster labels
 def plot_cluster_heatmap(cluster_coords, img_shape=(31, 31)):
+    """
+    Plot a cluster distribution heatmap, automatically mapping actual coordinates to the specified image dimensions.
+    
+    Args:
+        cluster_coords (dict): Mapping of cluster labels to coordinate lists {label: [(x1,y1), (x2,y2), ...]}
+        img_shape (tuple): Dimensions of the output heatmap (height, width)
+    """
+    # 1. Collect all coordinates and find min/max values
+    all_coords = []
+    for coords in cluster_coords.values():
+        all_coords.extend(coords)
+    
+    if not all_coords:
+        print("Warning: No coordinate data found")
+        return
+    
+    all_coords = np.array(all_coords)
+    min_x, min_y = np.min(all_coords, axis=0)
+    max_x, max_y = np.max(all_coords, axis=0)
     
     heatmap = np.zeros(img_shape, dtype=int) -1
     
-    # color mapping
-    unique_labels = sorted(cluster_coords.keys())
-    colors = plt.cm.get_cmap('tab10', len(unique_labels))
-    cmap = ListedColormap(colors(np.arange(len(unique_labels))))
+    # 3. Calculate scaling factors
+    x_range = max_x - min_x
+    y_range = max_y - min_y
     
+    # Avoid division by zero
+    scale_x = (img_shape[1] - 1) / x_range if x_range > 0 else 1
+    scale_y = (img_shape[0] - 1) / y_range if y_range > 0 else 1
+    
+    # 4. Create coordinate mapping function
+    def map_coord(x, y):
+        """Map actual coordinates to heatmap indices"""
+        x_idx = int(round((x - min_x) * scale_x))
+        y_idx = int(round((y - min_y) * scale_y))
+        # Ensure within image bounds
+        x_idx = max(0, min(x_idx, img_shape[1] - 1))
+        y_idx = max(0, min(y_idx, img_shape[0] - 1))
+        return y_idx, x_idx  # Note: Heatmap indices are (row, col) = (y, x)
+    
+    # 5. Populate heatmap with cluster labels
     for label, coords in cluster_coords.items():
         for (x, y) in coords:
-            if 0 <= x < img_shape[1] and 0 <= y < img_shape[0]:
-                heatmap[y, x] = label
-    if -1 in unique_labels:
-        n_colors = len(unique_labels)
-        color_values = plt.cm.tab10(np.linspace(0, 1, n_colors))
-        color_values[0] = [0.7, 0.7, 0.7, 1] # if label=-1, gray
-    else:
-        n_colors = len(unique_labels)
-        color_values = plt.cm.tab10(np.linspace(0, 1, n_colors))
-    #color mapping
+            row, col = map_coord(x, y)
+            heatmap[row, col] = label
+            
+    # color mapping
+    unique_labels = sorted(cluster_coords.keys())
+    n_colors = len(unique_labels)
+    
+    # Use tab10 colormap, adjust for -1 label (noise)
+    base_colors = plt.cm.tab10(np.linspace(0, 1, max(10, n_colors)))
+    color_values = []
+    for i, label in enumerate(unique_labels):
+        if label == -1:
+            color_values.append([0.7, 0.7, 0.7, 1])  # Gray for noise
+        else:
+            color_values.append(base_colors[i % 10])  # Cycle through tab10 colors
+    
     cmap = ListedColormap(color_values)
+    
     norm = plt.Normalize(vmin=min(unique_labels)-0.5, 
                         vmax=max(unique_labels)+0.5)
     
     
-    plt.figure(figsize=(12, 8))
-    im = plt.imshow(heatmap, cmap=cmap, interpolation='nearest', 
-                norm=norm)
+    # 7. Create legend elements
     legend_elements = [
         Patch(facecolor=color_values[i], 
-        edgecolor='k', 
-        label=f'Cluster {label}' if label != -1 else 'Noise')
+            edgecolor='k', 
+            label=f'Cluster {label}' if label != -1 else 'Noise')
         for i, label in enumerate(unique_labels)
     ]
-    plt.legend(handles=legend_elements, 
-            bbox_to_anchor=(1, 1), 
-            loc='upper left',
-            title='Clusters')
+    
+    # 8. Plot heatmap without axes
+    plt.figure(figsize=(12, 8))
+    plt.imshow(heatmap, cmap=cmap, interpolation='nearest')
     plt.title("Cluster Distribution Heatmap")
     plt.axis('off')
+    # Add legend
+    plt.legend(handles=legend_elements, 
+            bbox_to_anchor=(1.05, 1), 
+            loc='upper left',
+            title='Clusters')
     plt.tight_layout()
     plt.show()
 
@@ -353,6 +396,25 @@ def plot_intra_cluster_variation_map(loc_roi, variation, cluster_labels, img_sha
     if len(loc_roi) == 0:
         print("No data to plot.")
         return
+    # 1. Find min/max coordinates for mapping
+    min_x, min_y = np.min(loc_roi, axis=0)
+    max_x, max_y = np.max(loc_roi, axis=0)
+    x_range = max_x - min_x
+    y_range = max_y - min_y
+    
+    # 2. Calculate scaling factors
+    scale_x = (img_shape[1] - 1) / x_range if x_range > 0 else 1
+    scale_y = (img_shape[0] - 1) / y_range if y_range > 0 else 1
+    
+    # 3. Create mapping function
+    def map_coord(x, y):
+        """Map actual coordinates to heatmap indices"""
+        x_idx = int(round((x - min_x) * scale_x))
+        y_idx = int(round((y - min_y) * scale_y))
+        x_idx = max(0, min(x_idx, img_shape[1] - 1))
+        y_idx = max(0, min(y_idx, img_shape[0] - 1))
+        return y_idx, x_idx
+    
     # Get unique cluster labels and sort them
     unique_cluster_labels = np.unique(cluster_labels)
     num_clusters = len(unique_cluster_labels)
@@ -412,12 +474,11 @@ def plot_intra_cluster_variation_map(loc_roi, variation, cluster_labels, img_sha
         # print("Cluster centers and corresponding labels:", min_variation_points)
         # Apply colors to the heatmap
         for idx, (x, y) in enumerate(coords_in_cluster):
-            x_int, y_int = int(round(x)), int(round(y))
-            if 0 <= x_int < img_shape[1] and 0 <= y_int < img_shape[0]:
-                norm_val = normalized_variations[idx]
-                if not np.isnan(norm_val):
-                    color_rgba = current_cmap(norm_val)
-                    rgba_heatmap[y_int, x_int, :] = color_rgba
+            row, col = map_coord(x, y)
+            norm_val = normalized_variations[idx]
+            if not np.isnan(norm_val):
+                color_rgba = current_cmap(norm_val)
+                rgba_heatmap[row, col, :] = color_rgba
     print("Cluster centers and corresponding labels:", min_variation_points)
     # Display the RGBA heatmap
     ax.imshow(rgba_heatmap, interpolation='nearest', origin='upper')
@@ -425,78 +486,71 @@ def plot_intra_cluster_variation_map(loc_roi, variation, cluster_labels, img_sha
     ax.set_xlabel("X Coordinate")
     ax.set_ylabel("Y Coordinate")
     
+    
     # Box select the point with the min distance
     min_var_patches = []
     for x, y, label_val in min_variation_points:
-        x_int, y_int = int(round(x)), int(round(y))
-        if 0 <= x_int < img_shape[1] and 0 <= y_int < img_shape[0]:
-            # Create a rectangle
-            rect = plt.Rectangle((x_int - 0.5, y_int - 0.5), 1, 1, 
-                                linewidth=3, edgecolor='yellow', facecolor='none')
-            ax.add_patch(rect)
-            min_var_patches.append(rect)
+        row, col = map_coord(x, y)
+        rect = Rectangle((col - 0.5, row - 0.5), 1, 1, 
+                        linewidth=3, edgecolor='yellow', facecolor='none')
+        ax.add_patch(rect)
+        min_var_patches.append(rect)
     # Reference points box
     ref_win_patches = []
     if reference_windows is not None:
         for cid, win_info in reference_windows.items():
-            # obtain the window point indices
             window_points = win_info['window_points']
             for idx in window_points:
                 x, y = loc_roi[idx]
-                x_int, y_int = int(round(x)), int(round(y))
-                if 0 <= x_int < img_shape[1] and 0 <= y_int < img_shape[0]:
-                    rect = plt.Rectangle((x_int - 0.5, y_int - 0.5), 1, 1, 
-                                        linewidth=1.5, edgecolor='red', 
-                                        facecolor='none', hatch='////', alpha=0.8)
-                    ax.add_patch(rect)
-                    ref_win_patches.append(rect)
+                row, col = map_coord(x, y)
+                rect = Rectangle((col - 0.5, row - 0.5), 1, 1, 
+                                linewidth=1.5, edgecolor='red', 
+                                facecolor='none', hatch='////', alpha=0.8)
+                ax.add_patch(rect)
+                ref_win_patches.append(rect)
     ref1_patches = []
     ref2_patches = []
     # Plot ref1_pos with cluster colors
     if ref1_pos is not None:
         for x, y in ref1_pos:
-            x_int, y_int = int(round(x)), int(round(y))
-            if 0 <= x_int < img_shape[1] and 0 <= y_int < img_shape[0]:
-                # Find cluster label for this point (nearest neighbor)
-                distances = np.linalg.norm(loc_roi - [x, y], axis=1)
-                nearest_idx = np.argmin(distances)
-                cluster_label = cluster_labels[nearest_idx]
+            row, col = map_coord(x, y)
+            # Find cluster label for this point
+            distances = np.linalg.norm(loc_roi - [x, y], axis=1)
+            nearest_idx = np.argmin(distances)
+            cluster_label = cluster_labels[nearest_idx]
                     
-                if cluster_label in cluster_cmaps:
-                    color = cluster_cmaps[cluster_label](0.5)  # Mid-point color
-                    rect = plt.Rectangle((x_int - 0.5, y_int - 0.5), 1, 1, 
-                                        linewidth=2, edgecolor=color, 
-                                        facecolor='none', linestyle='-')
-                    ax.add_patch(rect)
-                    ref1_patches.append(rect)
+            if cluster_label in cluster_cmaps:
+                color = cluster_cmaps[cluster_label](0.5)  # Mid-point color
+                rect = Rectangle((col - 0.5, row - 0.5), 1, 1, 
+                                linewidth=2, edgecolor=color, 
+                                facecolor='none', linestyle='-')
+                ax.add_patch(rect)
+                ref1_patches.append(rect)
         
     # Plot ref2_pos with cluster colors
     if ref2_pos is not None:
         for x, y in ref2_pos:
-            x_int, y_int = int(round(x)), int(round(y))
-            if 0 <= x_int < img_shape[1] and 0 <= y_int < img_shape[0]:
-                # Find cluster label for this point (nearest neighbor)
-                distances = np.linalg.norm(loc_roi - [x, y], axis=1)
-                nearest_idx = np.argmin(distances)
-                cluster_label = cluster_labels[nearest_idx]
-                    
-                if cluster_label in cluster_cmaps:
-                    color = cluster_cmaps[cluster_label](0.5)  # Mid-point color
-                    rect = plt.Rectangle((x_int - 0.5, y_int - 0.5), 1, 1, 
-                                        linewidth=2, edgecolor=color, 
-                                        facecolor='none', linestyle='--')  # Dashed for distinction
-                    ax.add_patch(rect)
-                    ref2_patches.append(rect)
+            row, col = map_coord(x, y)
+            distances = np.linalg.norm(loc_roi - [x, y], axis=1)
+            nearest_idx = np.argmin(distances)
+            cluster_label = cluster_labels[nearest_idx]
+                
+            if cluster_label in cluster_cmaps:
+                color = cluster_cmaps[cluster_label](0.5)  # Mid-point color
+                rect = Rectangle((col - 0.5, row - 0.5), 1, 1, 
+                                linewidth=2, edgecolor=color, 
+                                facecolor='none', linestyle='--')
+                ax.add_patch(rect)
+                ref2_patches.append(rect)
     anomaly_patch_handles = []
     if anomalies_cluster_pca_coords3 is not None:
         anomalies_cluster_pca_coords3 = np.asarray(anomalies_cluster_pca_coords3)
         for x, y in anomalies_cluster_pca_coords3:
-            x_int, y_int = int(round(x)), int(round(y))
-            if 0 <= x_int < img_shape[1] and 0 <= y_int < img_shape[0]:
-                rect = plt.Rectangle((x_int - 0.5, y_int - 0.5), 1, 1,
-                                    linewidth=2, edgecolor='black', facecolor='none')
-                ax.add_patch(rect)
-                anomaly_patch_handles.append(rect)
+            row, col = map_coord(x, y)
+            rect = Rectangle((col - 0.5, row - 0.5), 1, 1,
+                            linewidth=2, edgecolor='black', facecolor='none')
+            ax.add_patch(rect)
+            anomaly_patch_handles.append(rect)
     # Add "center point" legend
     legend_handles = []
     if min_var_patches:
@@ -643,8 +697,9 @@ def dbscan_clustering(scores, loc_roi, eps=None, min_samples=5, eps_range=None):
     n_clusters = len(np.unique(cluster_labels)) - (-1 in cluster_labels)
     
     return cluster_coords, cluster_labels, optimal_eps, n_clusters, silhouette
+
 def plot_cnmf_scatter_with_boundary(weights, loc, cluster_labels, optimal_n, 
-                                ref1_pos, ref2_pos, d=0.1, title_prefix="GMM Clustering for cNMF weights", 
+                                ref1_pos, ref2_pos, anomalies_dict=None, d=0.1, title_prefix="GMM Clustering for cNMF weights", 
                                 ellipse_alpha=0.3):
     """
     Plot cnmf clustering results with boundary analysis in 2D space.
@@ -685,10 +740,16 @@ def plot_cnmf_scatter_with_boundary(weights, loc, cluster_labels, optimal_n,
                                 'YlOrBr', 'BuGn', 'PuRd', 'Greys'][:num_clusters]
     colors = [cm.get_cmap(name)(0.6) for name in default_cluster_cmap_names]
     
+    # Create color map for anomalies based on cluster colors
+    anomaly_colors = {}
+    for label in unique_labels:
+        idx = np.where(unique_labels == label)[0][0]
+        anomaly_colors[label] = colors[idx]
     # Boundary points
     distances = np.abs(weights[:, 0] - weights[:, 1]) / np.sqrt(2)
     boundary_mask = distances < d
     boundary_weights = weights[boundary_mask]
+    boundary_labels = cluster_labels[boundary_mask]  # NEW: Extract boundary labels
     boundary_added = False
     for i, label in enumerate(unique_labels):
         mask = (cluster_labels == label) & (~boundary_mask)
@@ -711,6 +772,35 @@ def plot_cnmf_scatter_with_boundary(weights, loc, cluster_labels, optimal_n,
     ax.scatter(weights[ref2_idx, 0], weights[ref2_idx, 1],
             s=200, marker='*', facecolor='yellow', edgecolor='k', 
             linewidth=1.5, zorder=10, label='Ref2 Positions')
+    
+    # Plot anomalies if provided
+    if anomalies_dict is not None:
+        # Find indices for anomaly coordinates
+        anomaly_indices = []
+        anomaly_labels = []
+        
+        for coord, label in anomalies_dict.items():
+            # Find matching location in loc array
+            idx = np.where((loc == coord).all(axis=1))
+            if idx[0].size > 0:
+                anomaly_indices.append(idx[0][0])
+                anomaly_labels.append(label)
+        
+        if anomaly_indices:
+            # Convert to numpy arrays
+            anomaly_indices = np.array(anomaly_indices)
+            anomaly_labels = np.array(anomaly_labels)
+            
+            # Plot each anomaly with triangle marker and corresponding color
+            for label in np.unique(anomaly_labels):
+                mask = (anomaly_labels == label)
+                ax.scatter(weights[anomaly_indices[mask], 0], 
+                        weights[anomaly_indices[mask], 1],
+                        marker='^', s=60, alpha=0.8, 
+                        facecolor=anomaly_colors.get(label, 'gray'),
+                        edgecolor='black', linewidth=1.0,
+                        zorder=9,  # Below reference points
+                        label='Anomalies' if label == anomaly_labels[0] else None)
     
     ax.set_xlim(0, np.max(weights[:, 0]))
     ax.set_ylim(0, np.max(weights[:, 1]))
@@ -769,7 +859,7 @@ def plot_cnmf_scatter_with_boundary(weights, loc, cluster_labels, optimal_n,
     plt.tight_layout()
     plt.show()
     
-    return boundary_mask, boundary_scores, boundary_locs, slope, intercept
+    return boundary_mask, boundary_scores, boundary_locs, boundary_labels, slope, intercept
 
 
 def plot_gmm_clusters(scores, cluster_labels, optimal_n, variations, dim=2, anomalies=None, reference_windows=None, title_prefix="GMM Clustering", ellipse_alpha=0.3):
@@ -1128,3 +1218,82 @@ def evaluate_clustering_metrics(coord_dict, coord_to_label, name_map, cluster_na
         "confusion_matrix": confusion_matrix(y_true, y_pred_mapped),
         "detailed_results": df
     }
+    
+
+def compute_mahalanobis_to_reference(pca_scores, loc, cluster_labels, ref_coord_dict):
+    """
+    For each point, compute Mahalanobis distance to its cluster's reference point in PCA space.
+
+    Args:
+        pca_scores (ndarray): shape (n_samples, n_components)
+        loc (ndarray): shape (n_samples, 2), coordinates for each sample in the same order
+        cluster_labels (ndarray): shape (n_samples,), integer cluster assignments
+        ref_coord_dict (dict): mapping cluster_label -> (x, y) reference coordinate
+
+    Returns:
+        distances (ndarray): shape (n_samples,), Mahalanobis distances for each sample in loc order
+    """
+    # Build coord->index map
+    loc_array = np.asarray(loc)
+    coord_to_index = {tuple(loc_array[i]): i for i in range(loc_array.shape[0])}
+    
+    # Initialize distance array with NaNs (for samples without valid reference)
+    distances = np.full(loc_array.shape[0], np.nan)
+    
+    # Precompute cluster covariances and reference vectors
+    cluster_info = {}
+    for cluster in np.unique(cluster_labels):
+        # Get reference point for this cluster
+        ref_coord = ref_coord_dict.get(cluster)
+        if ref_coord is None:
+            continue
+        
+        ref_idx = coord_to_index.get(tuple(ref_coord))
+        if ref_idx is None:
+            print(f"Warning: Reference coordinate {ref_coord} not found in loc array for cluster {cluster}")
+            continue
+        
+        # Get points in this cluster
+        mask = cluster_labels == cluster
+        cluster_scores = pca_scores[mask]
+        
+        # Only compute covariance if we have enough points
+        if len(cluster_scores) < 2:
+            print(f"Warning: Cluster {cluster} has only {len(cluster_scores)} points. Cannot compute covariance.")
+            continue
+        
+        # Compute covariance and its inverse
+        cov = np.cov(cluster_scores, rowvar=False)
+        try:
+            inv_cov = np.linalg.inv(cov)
+        except np.linalg.LinAlgError:
+            # If matrix is singular, use pseudo-inverse
+            inv_cov = np.linalg.pinv(cov)
+            print(f"Warning: Covariance matrix for cluster {cluster} is singular. Using pseudo-inverse.")
+        
+        cluster_info[cluster] = {
+            'ref_vec': pca_scores[ref_idx],
+            'inv_cov': inv_cov,
+            'mask': mask
+        }
+    
+    # Compute distances for each cluster
+    for cluster, info in cluster_info.items():
+        ref_vec = info['ref_vec']
+        inv_cov = info['inv_cov']
+        mask = info['mask']
+        
+        # Get scores for this cluster
+        cluster_scores = pca_scores[mask]
+        
+        # Compute differences to reference
+        diffs = cluster_scores - ref_vec
+        
+        # Mahalanobis distance computation using the vector methods
+        quad_form = np.sum(diffs @ inv_cov * diffs, axis=1)
+        dists = np.sqrt(quad_form)
+        
+        # Assign distances to the correct positions in the result array
+        distances[mask] = dists
+    
+    return distances

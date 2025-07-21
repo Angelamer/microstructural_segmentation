@@ -19,12 +19,12 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 from scipy.stats import chi2
-from matplotlib.lines import Line2D
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.patches import Rectangle
+from matplotlib.lines import Line2D
 
-
-
+torch.manual_seed(42)
+np.random.seed(42)
 
 def constrained_nmf(X, components):
     input_H = [
@@ -361,7 +361,7 @@ def detect_anomalies_cnmf(weights, coord_dict, loc_roi):
     return np.vstack(anomalies) if anomalies else None, np.array(anomalies_coords) if anomalies_coords else None
 
 # denote the anomalies (box)
-def _add_boxes(loc_roi, coords, ax, color, linewidth):
+def _add_boxes(loc_roi, coords, ax, color, linewidth, hatch=None, alpha=1.0):
     # find the relative coordinates of reference or anomalies within roi
     # reshape loc_roi
     loc_roi_reshaped = loc_roi.reshape((31, 31, 2))
@@ -389,7 +389,9 @@ def _add_boxes(loc_roi, coords, ax, color, linewidth):
                 (col-0.5, row-0.5), 1, 1, 
                 linewidth=linewidth, 
                 edgecolor=color, 
-                facecolor='none'
+                facecolor='none',
+                hatch = hatch,
+                alpha =alpha
             )
             ax.add_patch(rect)
     
@@ -461,3 +463,137 @@ def plot_weight_map_cnmf(weights, loc_roi, anomalies_coords=None, ref1_pos=None,
     plt.tight_layout()
     plt.show()
     
+    
+def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, anomalies_dict=None, ref1_pos=None, 
+                                    ref2_pos=None, component=0, boundary_locs=None):
+    """
+    Plot the weight map with locations of references, anomalies and boundary points,
+    and calculate similarity metrics between anomalies and boundary points.
+    
+    Args:
+        weights (ndarray): Weight values for each location
+        loc_roi (ndarray): Coordinates of all points
+        anomalies_dict (dict): Dictionary of anomaly points (key: coordinate, value: label index)
+        ref1_pos (ndarray): Coordinates for reference position 1
+        ref2_pos (ndarray): Coordinates for reference position 2
+        component (int): Which component to visualize (0 or 1)
+        boundary_locs (ndarray): Coordinates of boundary points
+        
+    Returns:
+        jaccard_index (float): Jaccard similarity between anomalies and boundary points
+        overlap_coefficient (float): Overlap coefficient between anomalies and boundary points
+    """
+    loc_roi = np.asarray(loc_roi)
+    # Reshape weights to match the grid
+    weight_map = np.reshape(weights, (31, 31, 2))
+    
+    # Obtain the specific component of weight
+    data = np.transpose(weight_map[:, :, component])
+    
+    # Create colormap (green-white-red)
+    colors = ["#2ca02c", "#ffffff", "#d62728"]
+    abs_max = np.max(np.abs(weights))
+    norm = TwoSlopeNorm(vmin=0, vcenter=0.5, vmax=abs_max)
+    cmap_custom = LinearSegmentedColormap.from_list("custom_diverging", colors)
+    
+    # Create figure
+    plt.figure(figsize=(12, 10))
+    ax = plt.gca()
+    
+    # Plot weight map
+    im = ax.imshow(data, cmap=cmap_custom, norm=norm, interpolation='nearest')
+    
+    # Prepare legend elements
+    legend_elements = []
+    
+    # === Add anomalies points with different colors per label ===
+    if anomalies_dict is not None and len(anomalies_dict) > 0:
+        # Generate distinct colors for each label
+        unique_labels = np.unique(list(anomalies_dict.values()))
+        color_map = plt.cm.get_cmap('tab10', len(unique_labels))
+        
+        for i, label in enumerate(unique_labels):
+            # Get coordinates for this label
+            label_coords = [coord for coord, lbl in anomalies_dict.items() if lbl == label]
+            color = color_map(i)
+            
+            # Add to plot with unique color
+            _add_boxes(loc_roi, label_coords, ax, color, 2, hatch='////', alpha=0.8)
+            
+            # Add legend entry
+            legend_elements.append(
+                Line2D([0], [0], color=color, lw=2, 
+                    label=f'Anomaly (Label {label})')
+            )
+    
+    
+    # Add reference points
+    if ref1_pos is not None and len(ref1_pos) > 0:
+        legend_elements.append(
+            Line2D([0], [0], color='red', lw=3, label='Reference 1')
+        )
+        _add_boxes(loc_roi, ref1_pos, ax, 'red', 3)
+    
+    if ref2_pos is not None and len(ref2_pos) > 0:
+        legend_elements.append(
+            Line2D([0], [0], color='blue', lw=3, label='Reference 2')
+        )
+        _add_boxes(loc_roi, ref2_pos, ax, 'blue', 3)
+    
+    # Add boundary points with black dashed boxes and cross hatch
+    if boundary_locs is not None and len(boundary_locs) > 0:
+        legend_elements.append(
+            Line2D([0], [0], color='black', lw=2, label='Boundary Points')
+        )
+
+        _add_boxes(loc_roi, boundary_locs, ax, 'black', 2)
+    
+    # Add legend
+    if legend_elements:
+        ax.legend(handles=legend_elements, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=3)
+    
+    # Color bar settings
+    cbar = plt.colorbar(im)
+    cbar.set_ticks([0, 0.5, abs_max])
+    cbar.ax.set_yticklabels([
+        f'Component {component+1} = 0\n(green)', 
+        'Both= 0.5\n(white)', 
+        f'Component {2 if component==0 else 1} = {abs_max}\n(red)'
+    ], fontsize=10)
+
+    plt.title(f"Component {component+1} Weight Map with Annotations")
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+    
+    # Calculate similarity metrics if both anomalies and boundary points are provided
+    jaccard_index = None
+    overlap_coefficient = None
+    
+    if anomalies_dict is not None and boundary_locs is not None:
+        # Convert coordinates to sets of tuples (rounded to nearest integer)
+        anomalies_set = set(tuple(int(round(v)) for v in coord) for coord in anomalies_dict.keys())
+        boundary_set = set(tuple(int(round(v)) for v in point) for point in boundary_locs)
+        
+        # Calculate intersection and union
+        intersection = anomalies_set & boundary_set
+        union = anomalies_set | boundary_set
+        
+        # Calculate Jaccard Index
+        if len(union) > 0:
+            jaccard_index = len(intersection) / len(union)
+        
+        # Calculate Overlap Coefficient
+        min_size = min(len(anomalies_set), len(boundary_set))
+        if min_size > 0:
+            overlap_coefficient = len(intersection) / min_size
+        
+        # Print the similarity metrics
+        print(f"Similarity between anomalies and boundary points:")
+        print(f"  Number of anomalies: {len(anomalies_set)}")
+        print(f"  Number of boundary points: {len(boundary_set)}")
+        print(f"  Intersection: {len(intersection)}")
+        print(f"  Jaccard Index: {jaccard_index:.4f}")
+        print(f"  Overlap Coefficient: {overlap_coefficient:.4f}")
+    
+    return jaccard_index, overlap_coefficient

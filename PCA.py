@@ -281,16 +281,17 @@ def _plot_pca(pca_scores, coord_dict, loc_roi, dim=2, ref1_pos=None, ref2_pos=No
     plt.show()
 
 # detect the anomalies out of the confidence eclipse
-def detect_anomalies_pca(pca_scores, coord_dict, loc_roi):
+def detect_anomalies_pca(pca_scores, coord_to_label, loc_roi):
     """
-    detect the anomalies out of the confidence eclipse and return the coordinates 
+    detect the anomalies out of the confidence eclipse and return the coordinates/ anomalies scores/ labels
     phase category is obtained from the indexed file (manual cluster/ group)
     """
     loc_roi = np.asarray(loc_roi)
-    labels = np.array([coord_dict.get((x, y), -1) for x, y in loc_roi])
+    labels = np.array([coord_to_label.get((x, y), -1) for x, y in loc_roi])
     n_dim = pca_scores.shape[1]
     anomalies = []
     anomalies_coords = []
+    anomalies_labels = []
     
     for phase in np.unique(labels):
         mask = (labels == phase)
@@ -298,6 +299,7 @@ def detect_anomalies_pca(pca_scores, coord_dict, loc_roi):
         
         # Mahalanobis Distance
         data = pca_scores[mask]
+        coords = loc_roi[mask]
         cov = np.cov(data.T)
         mean = np.mean(data, axis=0)
         try:
@@ -309,16 +311,21 @@ def detect_anomalies_pca(pca_scores, coord_dict, loc_roi):
         distances = np.sum(diff @ inv_cov * diff, axis=1)
         threshold = chi2.ppf(0.95, n_dim)  # 95% confidence interval
         
+        phase_anomaly_mask = distances > threshold
         # append the pca scores of the anomalies
-        phase_anomalies = data[distances > threshold]
-        anomalies.append(phase_anomalies)
-        # obtain the anomaly coordinates
-        phase_indices = np.where(mask)[0]
-        anomaly_indices = phase_indices[distances > threshold]
+        anomalies.append(data[phase_anomaly_mask])
+        anomalies_coords.append(coords[phase_anomaly_mask])
         
-        anomalies_coords.extend(loc_roi[anomaly_indices].tolist())
-    
-    return np.vstack(anomalies) if anomalies else None, np.array(anomalies_coords) if anomalies_coords else None
+        anomalies_labels.extend([phase] * np.sum(phase_anomaly_mask))
+    if anomalies:
+        anomalies = np.vstack(anomalies)
+        anomalies_coords = np.vstack(anomalies_coords)
+        anomalies_labels = np.array(anomalies_labels)
+    else:
+        anomalies = None
+        anomalies_coords = None
+        anomalies_labels = None
+    return anomalies, anomalies_coords, anomalies_labels
 
 
 # denote the anomalies (box)

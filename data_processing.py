@@ -9,7 +9,10 @@ import numpy as np
 import kikuchipy as kp
 import cv2
 from sklearn.preprocessing import StandardScaler
-
+from pathlib import Path
+import matplotlib.pyplot as plt
+from PIL import Image
+from tqdm import tqdm
 
 
 def img_normalization(pattern):
@@ -139,39 +142,221 @@ def get_components(Ca, Cb):
     return components
 
 
-def get_eds_average(pos_X, pos_Y, edax):
+def get_eds_average(pos_X, pos_Y, edax, type= 'component'):
     """
     get the eds average value for each element within one component/position
     """
     elements = ['oxygen', 'Mg', 'Al', 
                 'Si', 'Ti', 'Mn', 'Fe']
     
-    averages = []
-    
-    if isinstance(pos_X, tuple):
+    if type == 'component' and isinstance(pos_X, tuple) and isinstance(pos_Y, tuple):
+        averages = []
         for element in elements:
             try:
-                # get the eds value
-                eds_data = edax.inav[pos_X[0]:pos_X[1],pos_Y[0]:pos_Y[1]].xmap.prop[element]
-                
-                # calculate the average value
+                eds_data = edax.inav[pos_X[0]:pos_X[1], pos_Y[0]:pos_Y[1]].xmap.prop[element]
                 if eds_data.size > 0:
                     avg = np.nanmean(eds_data)
                     averages.append(round(avg, 4))
                 else:
                     averages.append(np.nan)
-                    
             except KeyError:
                 print(f"Warning: {element} data not found in EDS metadata!")
                 averages.append(np.nan)
-    else:
-        for element in elements:
-            eds_data = edax.inav[pos_X:(pos_X+1),pos_Y:(pos_Y+1)].xmap.prop[element]
-            
-            averages.append(eds_data)
+        return averages
+    elif type == 'roi' and isinstance(pos_X, tuple) and isinstance(pos_Y, tuple):
+        width = pos_X[1] - pos_X[0]
+        height = pos_Y[1] - pos_Y[0]
+        total_pixels = width * height
+        roi_data = np.full((total_pixels, len(elements)), np.nan)
+        for col_idx, element in enumerate(elements):
+            try:
+                eds_2d = edax.inav[pos_X[0]:pos_X[1], pos_Y[0]:pos_Y[1]].xmap.prop[element]
+                
+                
+                eds_flat = eds_2d.flatten(order='F')
+                
+
+                roi_data[:, col_idx] = eds_flat
+                
+            except KeyError:
+                print(f"Warning: {element} data not found in EDS metadata!")
         
-    return averages
+        return roi_data
+    else:
+        point_data = []
+        for element in elements:
+            try:
+                eds_data = edax.inav[pos_X:(pos_X+1), pos_Y:(pos_Y+1)].xmap.prop[element]
+                point_data.append(eds_data)
+            except KeyError:
+                print(f"Warning: {element} data not found in EDS metadata!")
+                point_data.append(None)
+        return point_data
+        
 
 
+def add_gaussian_noise_to_kikuchi_patterns(image_paths, noise_std=25, output_folder=None, auto_detect_circle=True):
+    """
+    Add Gaussian noise to Kikuchi patterns (only within circular signal region) and save the noisy images.
+    Only processes the first channel of the input image, but outputs 3-channel grayscale images.
+    
+    Parameters:
+    -----------
+    image_paths : list
+        List of paths to the original Kikuchi pattern images (should be 31*31=961 images)
+    noise_std : float, default=25
+        Standard deviation of the Gaussian noise (higher value = more noise)
+    output_folder : str, optional
+        Output folder path. If None, uses './Noise_scan'
+    auto_detect_circle : bool, default=True
+        Whether to automatically detect the circular region
+    
+    Returns:
+    --------
+    np.ndarray : Array of noisy images with shape (961, height, width, 3)
+    list : List of output file paths
+    """
+    
+    # Set output folder
+    if output_folder is None:
+        output_folder = './Noise_scan'
+    output_dir = Path(output_folder)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    noisy_images = []
+    output_paths = []
+    
+    print(f"Processing {len(image_paths)} Kikuchi patterns...")
+    print(f"Adding Gaussian noise with std={noise_std} (only within circular signal region)")
+    print(f"Output folder: {output_folder}")
+    
+    for i, img_path in enumerate(tqdm(image_paths, desc="Adding noise")):
+        try:
+            # Read the first channel only (grayscale)
+            img_gray = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+            if img_gray is None:
+                print(f"Error: Could not read image {img_path}")
+                continue
+                
+            # Convert to float for noise addition
+            img_float = img_gray.astype(np.float32)
+            
+            # Create circular mask for signal region
+            if auto_detect_circle:
+                mask = detect_circular_signal_region(img_gray)
+            else:
+                mask = create_noise_mask_for_circular_pattern(img_gray.shape)
+            
+            # Generate Gaussian noise for the first channel
+            noise = np.random.normal(0, noise_std, img_float.shape).astype(np.float32)
+            
+            # Apply noise only to the circular signal region
+            noisy_img_float = img_float + (noise * mask)
+            
+            # Clip values to valid range [0, 255]
+            noisy_img_float = np.clip(noisy_img_float, 0, 255)
+            
+            # Convert back to uint8 (single channel)
+            noisy_gray = noisy_img_float.astype(np.uint8)
+            
+            # Create 3-channel grayscale image (all channels same)
+            noisy_img = cv2.cvtColor(noisy_gray, cv2.COLOR_GRAY2BGR)
+            
+            # Store the noisy image
+            noisy_images.append(noisy_img)
+            
+            # Generate output filename with noise_ prefix
+            original_filename = Path(img_path).name
+            noisy_filename = f"{original_filename}"
+            output_path = output_dir / noisy_filename
+            
+            # Save the noisy image as 3-channel grayscale
+            cv2.imwrite(str(output_path), noisy_img)
+            
+            output_paths.append(str(output_path))
+                
+        except Exception as e:
+            print(f"Error processing {img_path}: {str(e)}")
+            continue
+    
+    # Convert list to numpy array
+    noisy_images_array = np.array(noisy_images)
+    
+    print(f"\nCompleted processing!")
+    print(f"Generated {len(noisy_images)} noisy images")
+    print(f"Output shape: {noisy_images_array.shape}")
+    print(f"Saved to: {output_folder}")
+    
+    return noisy_images_array, output_paths
 
+def detect_circular_signal_region(image, threshold=30):
+    """
+    Automatically detect the circular signal region in Kikuchi patterns
+    
+    Parameters:
+    -----------
+    image : np.ndarray
+        Input grayscale image (single channel)
+    threshold : int, default=30
+        Threshold for separating signal from background
+    
+    Returns:
+    --------
+    np.ndarray : Binary mask (1 for signal region, 0 for background)
+    """
+    # Create mask based on intensity threshold (assuming background is darker)
+    mask = image > threshold
+    
+    # Find contours to get the circular region
+    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if contours:
+        # Find the largest contour (should be the circular signal region)
+        largest_contour = max(contours, key=cv2.contourArea)
+        
+        # Create mask from the largest contour
+        mask_refined = np.zeros(image.shape, dtype=np.uint8)
+        cv2.drawContours(mask_refined, [largest_contour], -1, 255, thickness=cv2.FILLED)
+        
+        # Convert to float and normalize
+        mask_refined = mask_refined.astype(np.float32) / 255.0
+        return mask_refined
+    else:
+        # Fallback to simple threshold-based mask
+        return mask.astype(np.float32)
 
+def create_noise_mask_for_circular_pattern(image_shape, center=None, radius=None):
+    """
+    Create a mask for circular Kikuchi patterns to apply noise only to the signal region
+    
+    Parameters:
+    -----------
+    image_shape : tuple
+        Shape of the image (height, width)
+    center : tuple, optional
+        Center coordinates (y, x). If None, uses image center
+    radius : int, optional
+        Radius of the circular region. If None, uses min(height, width) // 2 - 10
+    
+    Returns:
+    --------
+    np.ndarray : Binary mask (1 for signal region, 0 for background) of shape (height, width)
+    """
+    height, width = image_shape
+    
+    if center is None:
+        center = (height // 2, width // 2)
+    
+    if radius is None:
+        radius = min(height, width) // 2 - 10  # Slightly smaller to avoid edge effects
+    
+    # Create coordinate grids
+    y, x = np.ogrid[:height, :width]
+    
+    # Calculate distance from center
+    distance = np.sqrt((x - center[1])**2 + (y - center[0])**2)
+    
+    # Create circular mask
+    mask = distance <= radius
+    
+    return mask.astype(np.float32)
