@@ -13,6 +13,8 @@ Licensed under GNU GPL3, see license file LICENSE_GPL3.
 from data_processing import signal_process, get_eds_average
 import torch
 import numpy as np
+import os
+import cv2
 from constrainedmf.nmf.models import NMF
 from progress.bar import Bar
 import matplotlib.patches as mpatches
@@ -22,7 +24,7 @@ from scipy.stats import chi2
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.patches import Rectangle
 from matplotlib.lines import Line2D
-
+from skimage.metrics import structural_similarity as ssim
 torch.manual_seed(42)
 np.random.seed(42)
 
@@ -597,3 +599,130 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, anomalies_dict=None, r
         print(f"  Overlap Coefficient: {overlap_coefficient:.4f}")
     
     return jaccard_index, overlap_coefficient
+
+
+def reconstruct_weighted_signals(
+    file_list,
+    loc_array,             # (n_files, 2) -> (x, y)
+    weights,               # (n_files, K)
+    components,            # (K, H*W) basis patterns
+    output_dir,
+    height=150,
+    width=150,
+    compare_coords=None    # e.g. [(10,12), (25,3)]
+):
+    
+    """
+    Reconstruct images from CNMF weights and components, save grayscale reconstructions,
+    and (optionally) show Original/Reconstructed/Residual for selected coordinates.
+
+    Returns:
+        residuals: list of (H,W) residual arrays
+        residual_norms: (n_files,) L2 norms
+        rmses: (n_files,) RMSE values
+        ssims: (n_files,) SSIM values
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    recon_dir = os.path.join(output_dir, "reconstructed")
+    os.makedirs(recon_dir, exist_ok=True)
+
+    # --- shape checks / coercion ---
+    weights = np.asarray(weights)
+    components = np.asarray(components)
+    if components.ndim != 2:
+        raise ValueError(f"`components` must be (K, H*W), got {components.shape}")
+    K, D = components.shape
+    if D != height * width:
+        raise ValueError(f"`components` second dim must equal H*W ({height*width}), got {D}")
+    if weights.ndim != 2 or weights.shape[1] != K:
+        raise ValueError(f"`weights` must be (n_files, K={K}), got {weights.shape}")
+    if len(file_list) != len(weights) or len(loc_array) != len(weights):
+        raise ValueError("file_list, loc_array, and weights must have same length in dim 0")
+
+    loc_int = np.asarray(loc_array, dtype=int)
+    compare_set = set()
+    if compare_coords:
+        compare_set = {(int(x), int(y)) for x, y in compare_coords}
+
+    residuals = []
+    residual_norms = np.zeros(len(file_list), dtype=float)
+    rmses = np.zeros(len(file_list), dtype=float)
+    ssims = np.zeros(len(file_list), dtype=float)
+
+    compare_cache = []
+
+    # Precompute (optional): if components are big, ensure float32 to save memory
+    components = components.astype(np.float32, copy=False)
+
+    for i, file_path in enumerate(file_list):
+        # ----- load original grayscale (your signal_process already returns ROI) -----
+        orig_vector = signal_process(file_path, flag="ROI").flatten().astype(np.float32)
+        if orig_vector.size != D:
+            raise ValueError(f"signal size {orig_vector.size} != H*W {D}")
+        orig_img = orig_vector.reshape(height, width)
+
+        # ----- CNMF reconstruction: weights[i] @ components -----
+        # shapes: (K,) @ (K,D) -> (D,)
+        recon_vector = np.dot(weights[i].astype(np.float32), components)
+        recon_img = recon_vector.reshape(height, width)
+
+        # ----- residual & metrics -----
+        residual = orig_img - recon_img
+        residuals.append(residual)
+
+        # L2 norm and RMSE
+        rn = float(np.linalg.norm(residual))
+        residual_norms[i] = rn
+        rmses[i] = rn / np.sqrt(height * width)
+
+        # SSIM in 0..1 range using original's dynamic range
+        omin, omax = float(orig_img.min()), float(orig_img.max())
+        data_range = max(1e-8, omax - omin)
+        o01 = np.clip((orig_img - omin) / data_range, 0, 1)
+        r01 = np.clip((recon_img - omin) / data_range, 0, 1)
+        ssims[i] = ssim(o01, r01, data_range=1.0)
+
+        # ----- save reconstructed as 8-bit grayscale (min-max per image) -----
+        rmin, rmax = recon_img.min(), recon_img.max()
+        if rmax > rmin:
+            recon_norm01 = (recon_img - rmin) / (rmax - rmin)
+        else:
+            recon_norm01 = np.zeros_like(recon_img)
+        img_8bit = (np.clip(recon_norm01, 0, 1) * 255).astype(np.uint8)
+
+        file_name = os.path.basename(file_path)
+        out_name = f"reconstructed_{file_name}"
+        cv2.imwrite(os.path.join(recon_dir, out_name), img_8bit)
+
+        # queue comparison if requested
+        xy = (int(loc_int[i, 0]), int(loc_int[i, 1]))
+        if xy in compare_set:
+            compare_cache.append({
+                'xy': xy,
+                'orig': orig_img,
+                'recon': recon_img,
+                'res': residual,
+                'rmse': float(rmses[i]),
+                'ssim': float(ssims[i]),
+                'name': file_name
+            })
+
+    # ----- show comparisons after the loop (grayscale) -----
+    for it in compare_cache:
+        fig, axes = plt.subplots(1, 3, figsize=(9, 3))
+        for ax, img, title in zip(
+            axes,
+            [it['orig'], it['recon'], it['res']],
+            ["Original", "Reconstructed", "Residual"]
+        ):
+            ax.imshow(img, cmap='gray')
+            ax.set_title(title)
+            ax.axis('off')
+        fig.suptitle(f"(x={it['xy'][0]}, y={it['xy'][1]})  RMSE={it['rmse']:.4f}  SSIM={it['ssim']:.4f}")
+        plt.tight_layout()
+        plt.show()
+
+    print(f"Done. CNMF reconstructions saved to: {recon_dir}")
+    return residuals, residual_norms, rmses, ssims
+    
+    

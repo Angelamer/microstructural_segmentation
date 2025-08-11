@@ -11,12 +11,15 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from data_processing import signal_process
 from progress.bar import Bar
+import os
+import cv2
 import matplotlib.patches as mpatches
 from matplotlib.patches import Ellipse
 from scipy.stats import chi2
 from matplotlib.lines import Line2D
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.patches import Rectangle
+from skimage.metrics import structural_similarity as ssim
 
 
 
@@ -421,4 +424,139 @@ def plot_weight_map_pca(pca_scores, loc_roi, anomalies_coords=None, ref1_pos=Non
     plt.axis('off')
     plt.tight_layout()
     plt.show()
+
+
+
+def reconstruct_pca_signals(file_list,
+    loc_array,                 # shape: (n_files, 2), each row = (x, y)
+    pca_scores,                # shape: (n_files, n_components)
+    pca,                       # fitted sklearn PCA (has mean_ and components_)
+    output_dir,
+    height=150,
+    width=150,
+    compare_coords=None        # e.g., [(10, 12), (25, 3)] — only these will be shown):
+):
     
+    """
+    Reconstruct images using a trained PCA model.
+    - Saves reconstructed images to disk.
+    - Returns residual images and residual norms.
+    - Only SHOWS comparison plots for coordinates listed in `compare_coords`.
+    (No comparison figures are saved.)
+
+    Args:
+        file_list: list[str]
+        loc_array: np.ndarray of shape (n_files, 2), integer coordinates (x, y)
+        pca_scores: np.ndarray, (n_files, n_components)
+        pca: fitted sklearn.decomposition.PCA object
+        output_dir: str
+        height, width: int
+        compare_coords: list[tuple[int,int]] or None
+    Returns:
+        residuals: list[np.ndarray]  # residual per image, shape (H, W)
+        residual_norms: np.ndarray   # shape (n_files,)
+    """
+    
+    os.makedirs(output_dir, exist_ok=True)
+    recon_dir = os.path.join(output_dir, "reconstructed")
+    os.makedirs(recon_dir, exist_ok=True)
+
+    # map (x,y) -> index for quick lookup
+    # ensure ints to match user-provided tuples
+    loc_int = np.asarray(loc_array, dtype=int)
+    coord_to_idx = { (int(x), int(y)): i for i, (x, y) in enumerate(loc_int) }
+
+    # normalize the compare list
+    compare_set = set()
+    if compare_coords:
+        for xy in compare_coords:
+            xy_int = (int(xy[0]), int(xy[1]))
+            if xy_int in coord_to_idx:
+                compare_set.add(xy_int)
+            else:
+                print(f"[warn] compare coord {xy_int} not found in loc_array; skipping.")
+
+    residuals = []
+    residual_norms = np.zeros(len(file_list), dtype=float)
+    rmses = np.zeros(len(file_list), dtype=float)
+    ssims = np.zeros(len(file_list), dtype=float)
+    compare_cache = []  # list of dicts: {'xy':(x,y), 'orig':..., 'recon':..., 'res':..., 'norm':...}
+    
+    for i, file_path in enumerate(file_list):
+        # ---- load & preprocess original (you still call your own signal_process) ----
+        orig_vector = signal_process(file_path, flag="ROI").flatten()
+        orig_img = orig_vector.reshape(height, width)
+
+        # ---- PCA reconstruction: mean_ + scores @ components_ ----
+        reconstructed_vector = pca.mean_ + np.dot(pca_scores[i], pca.components_)
+        reconstructed_img = reconstructed_vector.reshape(height, width)
+
+        # ---- residual ----
+        residual = orig_img - reconstructed_img
+        residuals.append(residual)
+        
+        # L2 norm
+        residual_norms[i] = float(np.linalg.norm(residual))
+        # RMSE
+        rmses[i] = residual_norms[i] / np.sqrt(height * width)
+        
+        # SSIM：use the original image values range
+        omin, omax = float(orig_img.min()), float(orig_img.max())
+        data_range = max(1e-8, omax - omin)
+        # Map the reconstructed image to the same intensity scale as the original image and then calculate SSIM
+        recon_for_ssim = (reconstructed_img - omin) / data_range
+        orig_for_ssim  = (orig_img        - omin) / data_range
+        recon_for_ssim = np.clip(recon_for_ssim, 0, 1)
+        orig_for_ssim  = np.clip(orig_for_ssim,  0, 1)
+        ssims[i] = ssim(orig_for_ssim, recon_for_ssim, data_range=1.0)
+        
+
+        # ---- save reconstructed (8-bit grayscale) ----
+        rmin, rmax = reconstructed_img.min(), reconstructed_img.max()
+        if rmax > rmin:
+            recon_norm01 = (reconstructed_img - rmin) / (rmax - rmin)
+        else:
+            recon_norm01 = np.zeros_like(reconstructed_img)
+        img_8bit = (np.clip(recon_norm01, 0, 1) * 255).astype(np.uint8)
+
+        file_name = os.path.basename(file_path)
+        recon_name = f"reconstructed_{file_name}"
+        cv2.imwrite(os.path.join(recon_dir, recon_name), img_8bit)
+
+        # ---- queue comparison if requested ----
+        xy = (int(loc_int[i, 0]), int(loc_int[i, 1]))
+        if xy in compare_set:
+            compare_cache.append({
+                'xy': xy,
+                'orig': orig_img,
+                'recon': reconstructed_img,
+                'res': residual,
+                'rmse': float(rmses[i]),
+                'ssim': float(ssims[i]),
+                'name': file_name
+            })
+
+    # ===== show comparisons (after loop) =====
+    for item in compare_cache:
+        orig_img = item['orig']
+        recon_img = item['recon']
+        res_img  = item['res']
+        xy       = item['xy']
+
+        fig, axes = plt.subplots(1, 3, figsize=(9, 3))
+        titles = ["Original", "Reconstructed", "Residual"]
+        images = [orig_img, recon_img, res_img]
+
+        for ax, img, title in zip(axes, images, titles):
+            ax.imshow(img, cmap='gray')
+            ax.set_title(title)
+            ax.axis('off')
+
+        fig.suptitle(
+            f"(x={xy[0]}, y={xy[1]})  RMSE={item['rmse']:.4f}  SSIM={item['ssim']:.4f}"
+        )
+        plt.tight_layout()
+        plt.show()
+
+    print(f"Done. Reconstructed images saved to: {recon_dir}")
+    return residuals, residual_norms, rmses, ssims

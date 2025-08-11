@@ -12,7 +12,7 @@ from sklearn.cross_decomposition import CCA
 from scipy import stats
 from matplotlib.colors import ListedColormap, to_hex, to_rgba
 from matplotlib.patches import Rectangle, Patch
-from matplotlib.cm import get_cmap
+from matplotlib.cm import get_cmap, ScalarMappable
 from matplotlib.lines import Line2D
 
 
@@ -23,6 +23,7 @@ def compute_roi_misorientation_map_from_xmap(
         roi_yrange=(0, 10),
         step_size=0.05,
         phase_ref_points=None,  # e.g., {0: (ix, iy)}, ix,iy are pixel indices
+        mis_tolerance=1.0,
         default_cluster_cmap_names=None,
         show_plot=True):
     """
@@ -176,7 +177,10 @@ def compute_roi_misorientation_map_from_xmap(
     if default_cluster_cmap_names is None:
         default_cluster_cmap_names = ['Blues', 'Greens', 'Reds', 'Purples', 'Oranges',
                                     'YlOrBr', 'BuGn', 'PuRd', 'Greys'][:n_phases]
-    cmaps = [cm.get_cmap(name) for name in default_cluster_cmap_names]
+    cmap_names = []
+    for i in range(n_phases):
+        cmap_names.append(default_cluster_cmap_names[i % len(default_cluster_cmap_names)])
+    cmaps = [get_cmap(name) for name in cmap_names]
     phase_ref_ori = {}
     
     for phase in phase_indices:
@@ -234,13 +238,12 @@ def compute_roi_misorientation_map_from_xmap(
     if show_plot:
         # Create figure with better layout
         fig = plt.figure(figsize=(12, 8))
-        ax = fig.add_axes([0.05, 0.1, 0.65, 0.8])  # Main plot area
+        ax = fig.add_axes([0.05, 0.1, 0.6, 0.8])  # Main plot area
         
-        # Create base image: grey for values >1°, transparent for others
         base_img = np.zeros((n_y, n_x, 4))
         
         # Set grey for values >1° or NaN
-        mask_high = (mis_map > 1) | np.isnan(mis_map)
+        mask_high = (mis_map > mis_tolerance) | np.isnan(mis_map)
         base_img[mask_high] = [0.7, 0.7, 0.7, 1]  # RGBA for grey
         
         # Create composite image with per-phase coloring for values <=1°
@@ -249,60 +252,74 @@ def compute_roi_misorientation_map_from_xmap(
         
         for i, phase in enumerate(phase_indices):
             mask_phase = (phase_map == phase)
-            mask_low = mask_phase & (mis_map <= 1)
+            mask_low = mask_phase & (mis_map <= mis_tolerance)
             
             if np.any(mask_low):
                 phase_mis = mis_map[mask_low]
-                vmin, vmax = 0, 1  # Fixed range for all phases
+                vmin, vmax = 0, mis_tolerance  # Fixed range for all phases
                 phase_norms[phase] = (vmin, vmax)
-                normed = (phase_mis - vmin) / (vmax - vmin)
-                
+                normed = (phase_mis - vmin) / (vmax - vmin + 1e-8)
                 cmap = cmaps[i % len(cmaps)]
-                rgba_img[mask_low] = cmap(normed)[:, :4]  # Ensure RGBA format
-                rgba_img[mask_low, 3] = 1.0  # Set alpha to opaque
+                rgba_img[mask_low] = cmap(normed)[:, :4]
+                rgba_img[mask_low, 3] = 1.0
         
         # Combine images: base (grey) + colored phases
         composite_img = np.where(rgba_img[..., 3:4] > 0, rgba_img, base_img)
         
         # Plot the composite image
-        im = ax.imshow(composite_img, interpolation='nearest', origin='upper')
+        im = ax.imshow(composite_img, interpolation='nearest', origin='upper',
+                    extent=[0, n_x, n_y, 0])
         ax.set_title("ROI Misorientation Map", fontsize=16, pad=20)
         ax.set_xlabel("X (ROI pixel index)", fontsize=12)
         ax.set_ylabel("Y (ROI pixel index)", fontsize=12)
-        
+        ax.set_xlim(0, n_x)
+        ax.set_ylim(n_y, 0)
         # Add grid lines for better orientation
         ax.grid(True, color='w', linestyle=':', linewidth=0.5, alpha=0.3)
         
         # Create colorbars for each phase
         if phase_indices.size > 0:
-            cax_width, cax_height = 0.02, 0.8
-            cax_spacing, cax_top = 0.03, 0.9
-            cax_left = 0.65
             
-            # Calculate total width needed for all colorbars
-            total_cbar_width = len(phase_indices) * cax_width + (len(phase_indices) - 1) * cax_spacing
-            start_x = 0.65 + (0.25 - total_cbar_width) / 2  # Center the colorbars
+            cax_width0 = 0.02
+            cax_spacing0 = 0.05
+            max_total_width = 0.25
+            total_required = len(phase_indices) * cax_width0 + (len(phase_indices)-1) * cax_spacing0
+            if total_required > max_total_width:
+                scale_factor = max_total_width / total_required
+                cax_width = cax_width0 * scale_factor
+                cax_spacing = cax_spacing0 * scale_factor
+            else:
+                cax_width = cax_width0
+                cax_spacing = cax_spacing0
+                
+            total_cbar_width = len(phase_indices) * cax_width + (len(phase_indices)-1) * cax_spacing
+            start_x = 0.65 + (0.25 - total_cbar_width) / 2
+            
+            cax_height = 0.8
+            cax_top = 0.9
+            cax_bottom = cax_top - cax_height
             
             for i, phase in enumerate(phase_indices):
-                vmin, vmax = 0, 1  # Fixed range for all phases
-                cax_bottom = cax_top - cax_height
+                
+                vmin, vmax = 0, mis_tolerance
                 cax = fig.add_axes([start_x + i*(cax_width + cax_spacing), 
                                     cax_bottom, 
                                     cax_width, 
                                     cax_height])
                 
-                cmap = cmaps[i % len(cmaps)]
+                cmap = cmaps[i]  # Colormap assigned to this phase
                 norm = Normalize(vmin=vmin, vmax=vmax)
-                sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+                sm = ScalarMappable(cmap=cmap, norm=norm)
                 sm.set_array([])
                 
                 cbar = Colorbar(cax, sm, orientation='vertical')
-                cbar.ax.tick_params(labelsize=8)
-                cbar.set_ticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
-                cbar.set_ticklabels(['0°', '0.2°', '0.4°', '0.6°', '0.8°', '1.0°'])
+                n_ticks = 6
+                ticks = np.linspace(0, mis_tolerance, n_ticks)
+                cbar.set_ticks(ticks)
+                cbar.set_ticklabels([f'{t:.2f}°' for t in ticks])
                 
                 # Add phase name above each colorbar
-                phase_name = phase_idx_to_name.get(int(phase), f"Phase {phase}")
+                phase_name = phase_idx_to_name.get(int(phase), f"Phase {int(phase)}")
                 cbar.ax.text(0.5, 1.05, phase_name, 
                             transform=cbar.ax.transAxes,
                             ha='center', va='bottom', fontsize=10)
@@ -312,16 +329,64 @@ def compute_roi_misorientation_map_from_xmap(
                     cbar.set_label("Misorientation [deg]", fontsize=12, labelpad=10)
         
         # Add text annotation for grey areas
-        fig.text(0.65, 0.05, "Grey areas: >1° or no data", 
-                fontsize=10, ha='left', va='center')
+        fig.text(0.75, 0.05, f"Grey areas: >{mis_tolerance}° or no data", 
+                fontsize=10, ha='center', va='center')
         
-        plt.tight_layout(rect=[0, 0, 0.95, 0.95])
+        plt.tight_layout(rect=[0, 0.05, 1, 0.95])
         plt.show()
 
     result_table = np.column_stack([roi_x, roi_y, roi_phase, misorientation])
     return result_table, mis_map, phase_map
 
+def normalize_misorientation_by_phase_map(mis_map, phase_map):
+    """
+    Normalize the orientation difference within each phase (0-1 range) for 2D grid data
 
+    Parameters:
+        mis_map: 2D array containing the orientation difference of each pixel (in degrees)
+        phase_map: 2D array containing the phase ID of each pixel
+
+    Returns:
+        normalized_map: normalized orientation difference map (0-1 range)
+        phase_min_max: dictionary recording the original minimum and maximum values of each phase {phase: (min, max)}
+    
+    """
+    
+    
+    normalized_map = np.full_like(mis_map, np.nan, dtype=float)
+    
+    # Get the IDs of all phases (excluding negative values, which usually indicate background or no data)
+    unique_phases = np.unique(phase_map)
+    unique_phases = unique_phases[unique_phases >= 0]
+    
+    phase_min_max = {}
+    
+    # Normalize each phase separately
+    for phase in unique_phases:
+        # mask for phase
+        mask = (phase_map == phase) & ~np.isnan(mis_map)
+        
+        
+        if not np.any(mask):
+            continue
+            
+        
+        phase_mis = mis_map[mask]
+        
+        min_val = np.min(phase_mis)
+        max_val = np.max(phase_mis)
+        
+        
+        phase_min_max[phase] = (min_val, max_val)
+        
+        
+        if max_val - min_val < 1e-8:
+            
+            normalized_map[mask] = 0.5
+        else:
+            normalized_map[mask] = (mis_map[mask] - min_val) / (max_val - min_val)
+    
+    return normalized_map, phase_min_max
 def extract_roi_quaternions(xmap, roi_xrange, roi_yrange, step_size):
     """
     Extract the quaternions within roi from xmap
@@ -657,3 +722,90 @@ def plot_phase_heatmap(coor_dict, boundary_loc_label_dict=None,
     ax.legend(handles=legend_unique, loc='upper left', bbox_to_anchor=(1.05, 1), fontsize=10)
     plt.tight_layout()
     plt.show()
+    
+    
+    
+
+def plot_element_vs_pca(pca_scores, element_df, loc, coord_dict, phase_map, figsize=(10, 6)):
+    """
+    Plot element content versus PCA scores (dual Y-axis)
+
+    Args:
+        pca_scores: Array of PCA scores (n_samples,)
+        element_df: DataFrame of element content containing 'O' and 'Fe' columns
+        loc: Array of coordinate tuples [(x1, y1), (x2, y2), ...]
+        coord_dict: Dictionary mapping coordinates to phase IDs {(x, y): phase_id}
+        phase_map: Dictionary mapping phase IDs to phase names {phase_id: phase_name}
+        figsize: Figure size (default 12×8 inches)
+    
+    """
+    # Validate input lengths
+    if len(pca_scores) != len(element_df) or len(pca_scores) != len(loc):
+        raise ValueError("All input arrays must have the same length")
+    
+    # Create figure with dual axes
+    fig, ax1 = plt.subplots(figsize=figsize)
+    ax2 = ax1.twinx()
+    
+    # Extract element content
+    o_content = element_df['O'].values
+    fe_content = element_df['Fe'].values
+    
+    # Define marker symbols for phases
+    marker_symbols = ['o', 's', '^', 'D', '*', 'p', 'X', 'v', '<', '>']
+    phase_markers = {}
+    
+    # Assign markers to unique phases
+    unique_phases = set(phase_map.values())
+    for i, phase in enumerate(unique_phases):
+        phase_markers[phase] = marker_symbols[i % len(marker_symbols)]
+    
+    # Create legend handles
+    element_handles = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', 
+            markersize=10, label='O Content'),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='red', 
+            markersize=10, label='Fe Content')
+    ]
+    
+    phase_handles = []
+    for phase, marker in phase_markers.items():
+        phase_handles.append(
+            Line2D([0], [0], marker=marker, color='w', markerfacecolor='gray', 
+                markersize=10, label=phase)
+        )
+    
+    # Plot each point with phase-specific marker
+    for i, coord in enumerate(loc):
+        # Get phase information
+        phase_id = coord_dict.get(coord)
+        phase_name = phase_map.get(phase_id, "Unknown")
+        marker = phase_markers.get(phase_name, 'o')
+        
+        # Plot O content (left axis)
+        ax1.scatter(pca_scores[i], o_content[i], 
+                c='blue', alpha=0.7, marker=marker,
+                s=60, edgecolors='w')
+        
+        # Plot Fe content (right axis)
+        ax2.scatter(pca_scores[i], fe_content[i], 
+                c='red', alpha=0.7, marker=marker,
+                s=60, edgecolors='w')
+    
+    # Configure axes
+    ax1.set_xlabel('PC 1', fontsize=12)
+    ax1.set_ylabel('O Content', fontsize=12, color='blue')
+    ax1.tick_params(axis='y', labelcolor='blue')
+    
+    ax2.set_ylabel('Fe Content', fontsize=12, color='red')
+    ax2.tick_params(axis='y', labelcolor='red')
+    
+    # Add grid and legend
+    ax1.grid(True, linestyle='--', alpha=0.3)
+    ax1.legend(handles=element_handles + phase_handles, loc='best', fontsize=10)
+    
+    # Add title and display
+    plt.title('Element Content vs PC Score by Phase', fontsize=14, pad=20)
+    plt.tight_layout()
+    plt.show()
+    
