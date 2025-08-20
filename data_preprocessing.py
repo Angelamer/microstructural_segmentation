@@ -20,7 +20,7 @@ import pandas as pd
 # ---- columns ----
 ELEM_COLS = ['O', 'Mg', 'Al', 'Si', 'Ti', 'Mn', 'Fe']
 
-def get_eds_average(pos_X, pos_Y, edax, type= 'component'):
+def get_eds_average(pos_X, pos_Y, edax, type= 'component', read_mode ='vertical'):
     """
     get the eds average value for each element within one component/position
     """
@@ -42,23 +42,36 @@ def get_eds_average(pos_X, pos_Y, edax, type= 'component'):
                 averages.append(np.nan)
         return averages
     elif type == 'roi' and isinstance(pos_X, tuple) and isinstance(pos_Y, tuple):
-        width = pos_X[1] - pos_X[0]
-        height = pos_Y[1] - pos_Y[0]
+        x0, x1 = pos_X
+        y0, y1 = pos_Y
+        width  = x1 - x0
+        height = y1 - y0
         total_pixels = width * height
-        roi_data = np.full((total_pixels, len(elements)), np.nan)
+        roi_data = np.full((total_pixels, len(elements)), np.nan, dtype=float)
+
+        # choose flatten order:
+        #   'C'  -> last axis (y) varies fastest  -> (0,0),(0,1),(0,2),... (vertical reading) ✅
+        #   'F'  -> first axis (x) varies fastest -> (0,0),(1,0),(2,0),... (horizontal reading)
+        flatten_order = 'C' if read_mode == 'vertical' else 'F'
+
         for col_idx, element in enumerate(elements):
             try:
-                eds_2d = edax.inav[pos_X[0]:pos_X[1], pos_Y[0]:pos_Y[1]].xmap.prop[element]
-                
-                
-                eds_flat = eds_2d.flatten(order='F')
-                
+                eds_1d = edax.inav[x0:x1, y0:y1].xmap.prop[element]
+                # Ensure it's a NumPy array
+                eds_1d = np.asarray(eds_1d)
+                if eds_1d.size != total_pixels:
+                    raise ValueError(f"Unexpected size for element {element}: {eds_1d.size}, expected {total_pixels}")
+                # reshape 成 (width, height)，这里 axis=0 是 x，axis=1 是 y
+                eds_2d = eds_1d.reshape((width, height), order='C')
+
+                # ----------- 控制展平方向 -----------
+                # vertical: y 先变 → flatten(order='F')
+                # horizontal: x 先变 → flatten(order='C')
+                eds_flat = eds_2d.flatten(order='F')   # 纵向读取 (0,0),(0,1),(0,2)...
 
                 roi_data[:, col_idx] = eds_flat
-                
             except KeyError:
-                print(f"Warning: {element} data not found in EDS metadata!")
-        
+                print(f"Warning: {element} not found in EDS metadata.")
         return roi_data
     else:
         point_data = []

@@ -95,30 +95,41 @@ class ClipLikeLoss(nn.Module):
     If learnable_temp=True, temperature is learnable (logit_scale).
     Otherwise supports set_temperature(T) to fix/anneal temperature.
     """
-    def __init__(self, temperature=0.07, learnable_temp=False):
+    def __init__(self, temperature=0.07, learnable_temp=True, min_temp=0.01, max_temp=1.0):
         super().__init__()
+        self.learnable_temp = learnable_temp
         if learnable_temp:
+            # Initialize logit_scale with log(1/temperature)
             self.logit_scale = nn.Parameter(torch.log(torch.tensor(1.0 / temperature)))
-            self.register_buffer("_fixed_scale", torch.tensor(1.0))  # unused
+            self.min_temp = min_temp
+            self.max_temp = max_temp
         else:
-            self.logit_scale = None
             self.register_buffer("_fixed_scale", torch.tensor(1.0 / float(temperature)))
         self.ce = nn.CrossEntropyLoss()
         
-    def set_temperature(self, T: float):
-        T = float(max(1e-6, T))
-        if self.logit_scale is None:
-            self._fixed_scale = torch.tensor(1.0 / T, device=self._fixed_scale.device)
+    def get_temperature(self):
+        """Get the current temperature value"""
+        if self.learnable_temp:
+            scale = self.logit_scale.exp().clamp(min=1.0/self.max_temp, max=1.0/self.min_temp)
+            return 1.0 / scale.item()
         else:
-            # Overwrite learnable scale if you want to force annealing
+            return 1.0 / self._fixed_scale.item() 
+           
+    def set_temperature(self, T: float):
+        """Manually set temperature (useful for annealing)"""
+        T = float(max(1e-6, T))
+        if self.learnable_temp:
+            # Overwrite learnable scale for annealing
             with torch.no_grad():
-                self.logit_scale.copy_(torch.log(torch.tensor(1.0 / T, device=self.logit_scale.device)))
+                self.logit_scale.copy_(torch.log(torch.tensor(1.0 / T)))
+        else:
+            self._fixed_scale = torch.tensor(1.0 / T, device=self._fixed_scale.device)
                 
     def forward(self, z_k, z_e):
         # z_k, z_e already normalized
         B = z_k.size(0)
-        if self.logit_scale is not None:
-            scale = self.logit_scale.exp().clamp(min=1.0, max=100.0)
+        if self.learnable_temp:
+            scale = self.logit_scale.exp().clamp(min=1.0/self.max_temp, max=1.0/self.min_temp)
         else:
             scale = self._fixed_scale
 
@@ -159,7 +170,9 @@ def train_and_evaluate(feature_type, train_data, test_data, output_dim =2,latent
                     temp_floor=0.01,
                     temp_decay=0.95,
                     temp_step=10,
-                    grad_clip_norm=None
+                    grad_clip_norm=None,
+                    min_temp=0.01, max_temp=2.0
+                    
                     ):
     """
     Train with CLIP-like loss. Optionally anneal temperature if learnable_temp=False.
@@ -191,8 +204,11 @@ def train_and_evaluate(feature_type, train_data, test_data, output_dim =2,latent
     feature_dim = len(train_dataset.feature_cols)
     element_dim = len(train_dataset.element_cols)
     model = ContrastiveModel(feature_dim, element_dim, latent_dim=latent_dim,projection_dim=output_dim).to(device)
-    criterion = ClipLikeLoss(temperature=temperature, learnable_temp=learnable_temp)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    criterion = ClipLikeLoss(temperature=temperature, learnable_temp=learnable_temp,min_temp=min_temp, max_temp=max_temp)
+    optimizer = torch.optim.AdamW([
+        {'params': model.parameters()},
+        {'params': [criterion.logit_scale]} if learnable_temp else []
+    ], lr=lr, weight_decay=weight_decay)
     scaler = torch.amp.GradScaler('cuda', enabled=(device.type == 'cuda'))  # For mixed precision training
     
 
@@ -201,18 +217,17 @@ def train_and_evaluate(feature_type, train_data, test_data, output_dim =2,latent
     
     final_alignment, final_uniformity = float('nan'), float('nan')
     for epoch in range(num_epochs):
-        # Temperature schedule (only if you want to override)
-        if not learnable_temp and temp_anneal:
-            current_temp = max(temp_floor, temp_init * (temp_decay ** (epoch // temp_step)))
-            criterion.set_temperature(current_temp)
-            temp_display = current_temp
+        # Temperature display
+        if learnable_temp:
+            temp_display = criterion.get_temperature()
         else:
-            # if learnable, show effective temperature
-            with torch.no_grad():
-                if criterion.logit_scale is not None:
-                    temp_display = float((1.0 / criterion.logit_scale.exp()).clamp(min=1e-6).cpu())
-                else:
-                    temp_display = temperature
+            # Handle non-learnable temperature with annealing if needed
+            if temp_anneal:
+                current_temp = max(temp_floor, temp_init * (temp_decay ** (epoch // temp_step)))
+                criterion.set_temperature(current_temp)
+                temp_display = current_temp
+            else:
+                temp_display = temperature
         # Training
         model.train()
         epoch_train_loss = 0.0
