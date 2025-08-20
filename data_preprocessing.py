@@ -8,14 +8,17 @@ Licensed under GNU GPL3, see license file LICENSE_GPL3.
 import numpy as np
 import kikuchipy as kp
 import cv2
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+from scipy.stats import gmean
 from pathlib import Path
 import matplotlib.pyplot as plt
 from PIL import Image
 from tqdm import tqdm
+import pandas as pd
 
 
-
+# ---- columns ----
+ELEM_COLS = ['O', 'Mg', 'Al', 'Si', 'Ti', 'Mn', 'Fe']
 
 def get_eds_average(pos_X, pos_Y, edax, type= 'component'):
     """
@@ -102,43 +105,119 @@ def coord_xmap_dict(xmap, step=0.05):
                 phase_dict[(ix, iy)] = pid
 
     return phase_dict
-def preprocess_features(all_data):
-    """
-    Preprocessing contrast learning input features
 
-    Parameters:
-        pca_scores: PCA score matrix (n_samples, n_pca_components)
-        cnmf_weights: cNMF weight matrix (n_samples, n_components)
-        element_content: element content matrix (n_samples, n_elements)
 
-    Returns:
-        Preprocessed tuple (pca_processed, cnmf_processed, element_processed)
-    """
-    processed_data = all_data.copy()
-    pca_cols = [col for col in all_data.columns if col.startswith('PC_')]
-    cnmf_cols = [col for col in all_data.columns if col.startswith('cNMF_')]
-    element_cols = ['O', 'Mg', 'Al', 'Si', 'Ti', 'Mn', 'Fe']
-    
+def get_feature_cols(df, kind):
+    if kind == 'pca':
+        return [c for c in df.columns if c.startswith('PC_')]
+    elif kind == 'cnmf':
+        return [c for c in df.columns if c.startswith('cNMF_')]
+    else:
+        raise ValueError("kind must be 'pca' or 'cnmf'")
+
+# ---------- compositional transform: CLR ----------
+def clr_transform(arr, eps=1e-9):
+    """arr: (N,K) >=0, automatically close to sum=1, then do CLR"""
+    arr = np.asarray(arr, dtype=np.float64)
+    row_sum = arr.sum(axis=1, keepdims=True)
+    row_sum[row_sum <= 0] = 1.0
+    comp = arr / row_sum
+    comp = comp + eps
+    gm = np.exp(np.mean(np.log(comp), axis=1, keepdims=True))
+    clr = np.log(comp) - np.log(gm)
+    return clr.astype(np.float32)
+
+# ---------- Fitting preprocessor (on training set only) ----------
+def fit_preprocessors(
+    train_df: pd.DataFrame,
+    pca_scale: str = 'standard',     # 'standard' | 'minmax' | 'robust' | 'none'
+    cnmf_transform: str = 'clr',     # 'clr' | 'zscore' | 'none'
+    elem_transform: str = 'raw'      # 'raw' | 'zscore' | 'clr' | 'log1p_zscore'
+):
+    transformers = {}
+
+    # PCA
+    pca_cols = get_feature_cols(train_df, 'pca')
     if pca_cols:
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        processed_data[pca_cols] = scaler.fit_transform(processed_data[pca_cols])
-        
+        if pca_scale == 'standard':
+            scaler = StandardScaler().fit(train_df[pca_cols].values)
+            transformers['pca'] = ('standard', pca_cols, scaler)
+        elif pca_scale == 'minmax':
+            scaler = MinMaxScaler().fit(train_df[pca_cols].values)
+            transformers['pca'] = ('minmax', pca_cols, scaler)
+        elif pca_scale == 'robust':
+            scaler = RobustScaler().fit(train_df[pca_cols].values)
+            transformers['pca'] = ('robust', pca_cols, scaler)
+        elif pca_scale == 'none':
+            transformers['pca'] = ('none', pca_cols, None)
+
+    # cNMF
+    cnmf_cols = get_feature_cols(train_df, 'cnmf')
     if cnmf_cols:
-        cnmf_data = all_data[cnmf_cols].values
-        
-        cnmf_processed = np.zeros_like(cnmf_data)
-        for i in range(cnmf_data.shape[0]):
-            row = cnmf_data[i, :]
-            
-            row = np.where(row == 0, 1e-9, row)
-            geometric_mean = np.exp(np.mean(np.log(row)))
-            cnmf_processed[i, :] = np.log(row / geometric_mean)
-        
-        processed_data[cnmf_cols] = cnmf_processed
-    
-    if element_cols:
-        
-        for col in element_cols:
-            processed_data[col] = np.log1p(all_data[col])
-    
-    return processed_data
+        if cnmf_transform == 'zscore':
+            scaler = StandardScaler().fit(train_df[cnmf_cols].values)
+            transformers['cnmf'] = ('zscore', cnmf_cols, scaler)
+        elif cnmf_transform == 'clr':
+            # CLR 无需拟合，但记录列名
+            transformers['cnmf'] = ('clr', cnmf_cols, None)
+        elif cnmf_transform == 'none':
+            transformers['cnmf'] = ('none', cnmf_cols, None)
+
+    # elements
+    have_elem = all(col in train_df.columns for col in ELEM_COLS)
+    if have_elem:
+        if elem_transform == 'zscore':
+            scaler = StandardScaler().fit(train_df[ELEM_COLS].values)
+            transformers['elem'] = ('zscore', ELEM_COLS, scaler)
+        elif elem_transform == 'clr':
+            transformers['elem'] = ('clr', ELEM_COLS, None)
+        elif elem_transform == 'log1p_zscore':
+            # First log1p, then zscore (fit with train)
+            tmp = np.log1p(train_df[ELEM_COLS].values)
+            scaler = StandardScaler().fit(tmp)
+            transformers['elem'] = ('log1p_zscore', ELEM_COLS, scaler)
+        elif elem_transform == 'raw':
+            transformers['elem'] = ('raw', ELEM_COLS, None)
+
+    return transformers
+
+# ---------- transform any df using the fitted preprocessor ----------
+def apply_preprocessors(df: pd.DataFrame, transformers: dict) -> pd.DataFrame:
+    out = df.copy()
+
+    # PCA
+    if 'pca' in transformers:
+        mode, cols, obj = transformers['pca']
+        X = out[cols].values.astype(np.float32)
+        if mode in ('standard', 'minmax', 'robust'):
+            X = obj.transform(X)
+        # 'none' 
+        out[cols] = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # cNMF
+    if 'cnmf' in transformers:
+        mode, cols, obj = transformers['cnmf']
+        X = out[cols].values
+        if mode == 'zscore':
+            X = obj.transform(X)
+        elif mode == 'clr':
+            X = clr_transform(X)
+        # 'none' 
+        out[cols] = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
+
+    # elements
+    if 'elem' in transformers:
+        mode, cols, obj = transformers['elem']
+        X = out[cols].values
+        if mode == 'raw':
+            pass
+        elif mode == 'zscore':
+            X = obj.transform(X)
+        elif mode == 'clr':
+            X = clr_transform(X)
+        elif mode == 'log1p_zscore':
+            X = np.log1p(X)
+            X = obj.transform(X)
+        out[cols] = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
+
+    return out

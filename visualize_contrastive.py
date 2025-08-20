@@ -1,9 +1,6 @@
 import torch
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-import umap
 from sklearn.manifold import TSNE
 
 def visualize_loss_curve(
@@ -249,8 +246,8 @@ def visualize_contrastive_embeddings_by_phase(
     # Connect same sample points
     for i in range(len(features)):
         plt.plot([feature_tsne[i, 0], element_tsne[i, 0]], 
-                 [feature_tsne[i, 1], element_tsne[i, 1]], 
-                 color=phase_colors[i], alpha=0.2, linestyle='--')
+                [feature_tsne[i, 1], element_tsne[i, 1]], 
+                color=phase_colors[i], alpha=0.2, linestyle='--')
     
     # Create custom legend
     phase_legend = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=phase_to_color[phase], 
