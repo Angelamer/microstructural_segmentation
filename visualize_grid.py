@@ -18,17 +18,39 @@ import utils
 coords = {}  # global variable to be used by all functions.
 
 
-def read_data(path):
+def read_data(path_to_kikuchi, path_to_phasemap):
     """
-    Read the file names and plot the spatial space into a corresponding grid.
-    return: NDarray, with all (x,y)
+    Read Kikuchi pattern filenames, extract their spatial grid coordinates, and
+    visualize the grid overlay on a phase map.
+
+    Args:
+        path_to_kikuchi (str): Path to the folder containing Kikuchi pattern image files.
+            Filenames must encode coordinates that `_coordinate_extract` can parse.
+            Only files ending with ".jpg" or ".tiff" will be considered.
+        path_to_phasemap (str): Path to the phase map image file (e.g., .png, .jpg, .tiff).
+            This will be used as the background for plotting the extracted grid.
+
+    Returns:
+        np.ndarray:
+            A 2D numpy array of shape (N, 2) containing the (x, y) coordinates extracted
+            from Kikuchi pattern filenames.
+
+    Side Effects:
+        - Plots the grid overlaid on the phase map image using `utils._plot_grid`.
+        - Prints the grid dimensions `(xdim+1, ydim+1)`.
+
+    Notes:
+        - Relies on `_get_grid(names)` to parse coordinates from filenames.
+        - The dimensions reported (`xdim+1`, `ydim+1`) are based on the maximum extracted
+          coordinates and assume 0-based indexing.
     """
 
-    file_names = os.listdir(path)
-    names = natsorted(file_names) #sorted by the real value not by ascii
+    file_names = os.listdir(path_to_kikuchi)
+    names = natsorted(file_names)  # sorted numerically instead of ASCII
     grid, xdim, ydim = _get_grid(names)
-    img = mpimg.imread(path + "Scan3_cropped_phasemap.png")
-    #print(grid)
+
+    img = mpimg.imread(path_to_phasemap)
+
     utils._plot_grid(grid, img)
     print("x dimensions", xdim+1, "\n", "y dimensions", ydim+1, "\n", "in multiples of 1")
 
@@ -66,74 +88,129 @@ def set_component(x_range, y_range, path, grid, plot_flag= True):
     return [lis[0] for lis in roi], [lis[1:] for lis in roi]
 
 
-# Set region of interest (ROI)
-def set_ROI(x_range, y_range, path, grid):
-    # this function will overlay the ROI over the plot.
-    x_l = x_range[0]
-    x_u = x_range[1]
+def set_ROI(x_range, y_range, path, grid, path_to_phasemap):
+    """
+    Select and visualize a rectangular Region of Interest (ROI) within the EBSD/Kikuchi grid.
 
-    y_l = y_range[0]
-    y_u = y_range[1]
+    Args:
+        x_range (tuple[int, int]): Lower and upper bounds for the x-coordinate (inclusive).
+        y_range (tuple[int, int]): Lower and upper bounds for the y-coordinate (inclusive).
+        path (str): Directory path prefix to be prepended to each filename in the ROI.
+        grid (np.ndarray): The full grid of coordinates as returned by `read_data` / `_get_grid`.
+        path_to_phasemap (str): Path to the phase map image, used as background for plotting.
 
-    
+    Returns:
+        tuple[list[str], list[tuple[int, int]]]:
+            - List of full file paths of Kikuchi patterns within the ROI.
+            - List of corresponding (x, y) coordinates of those files.
+
+    Side Effects:
+        - Overlays the ROI on top of the phase map grid using `utils._plot_ROI`.
+        - Reads and displays the phase map image.
+
+    Notes:
+        - Relies on the global dictionary `coords`, which maps filenames → (x, y) coordinates.
+        - The selection includes all points with coordinates satisfying
+          `x_range[0] <= x <= x_range[1]` and `y_range[0] <= y <= y_range[1]`.
+    """
+    x_l, x_u = x_range
+    y_l, y_u = y_range
 
     roi = []
     index = []
-    count =-1
+    count = -1
+
     for key, value in coords.items():
         xy = np.asarray(list(value))
-        x = xy[0]
-        y = xy[1]
-        count+=1
-        # print(x,y)
-        if (x >= x_l and x <= x_u) and (y >= y_l and y <= y_u):
-            # print(key, value)
-            # roi[key].append(value)
+        x, y = xy[0], xy[1]
+        count += 1
+
+        if (x_l <= x <= x_u) and (y_l <= y <= y_u):
             roi.append((path + key, x, y))
             index.append(count)
 
-    img = mpimg.imread(path + "Scan3_cropped_phasemap.png")
+    img = mpimg.imread(path_to_phasemap)
     utils._plot_ROI(roi, grid, img)
 
-    return [lis[0] for lis in roi], [lis[1:] for lis in roi]
-
+    return [lis[0] for lis in roi], np.array([lis[1:] for lis in roi])
 
 def _get_grid(names):
     """
-    Sorts and reads the file names as a grid
-    return a dic(filename,max_x,max_y)
+    Parse image filenames, extract spatial coordinates, and compute grid dimensions.
+
+    Args:
+        names (list of str): List of file names (e.g., from EBSD/EDS export). 
+            Only files ending with ".jpg" or ".tiff" are considered.
+
+    Returns:
+        tuple:
+            - coord_grid (np.ndarray): Array of shape (N, 2), containing (x, y) coordinates 
+              extracted from filenames.
+            - x_dim (int): Maximum x coordinate found in the grid.
+            - y_dim (int): Maximum y coordinate found in the grid.
+
+    Notes:
+        - This function depends on `_coordinate_extract(file)` which should return (x, y).
+        - `coords` is assumed to be a dictionary mapping filenames → (x, y).
     """
 
     for file in names:
-
-        if file.endswith(".jpg"):
+        if file.endswith(".jpg") or file.endswith(".tiff"):
             coords[file] = _coordinate_extract(file)
-            # coords.append(coordinate_extract(file))
-    
-    
-    #coords is a dict    
-    coord_grid = np.asarray(list(coords.values()))  # to extract only the coordinates
-    #print(coord_grid)
-    # get dimensions of the EBSD space, indexed points.
-    x_dim = max(coord_grid[:, 0])
-    y_dim = max(coord_grid[:, 1])
 
-    return (coord_grid, x_dim, y_dim)
+    # Convert dict values to numpy array
+    coord_grid = np.asarray(list(coords.values()))  # shape (N, 2)
+
+    # Determine EBSD grid dimensions
+    x_dim = int(coord_grid[:, 0].max())
+    y_dim = int(coord_grid[:, 1].max())
+
+    return coord_grid, x_dim, y_dim
 
 
-def _coordinate_extract(filename):
+def _coordinate_extract(filename: str):
     """
-    Extract the patterns of the files for reading and using as grid
+    Extract (x, y) coordinates from a filename.
 
+    Supported patterns (case-insensitive, with optional spaces/extra underscores):
+      1) Labeled: ... x_<int> _ y_<int> .ext  -> returns (x, y)
+         e.g. "abc_x_12_y_34.jpg"
+      2) Unlabeled two-integer suffix: ... <int> _ <int> .ext  -> interprets as (y, x), returns (x, y) = (second, first)
+         e.g. "34_12.tiff"  -> returns (12, 34)
+
+    Extensions supported: jpg, jpeg, tif, tiff.
+
+    Args:
+        filename (str): The filename (basename or full path).
+
+    Returns:
+        tuple[int, int]: (x, y) coordinates parsed from the filename.
+
+    Raises:
+        ValueError: If no supported coordinate pattern is found.
     """
-    pattern = re.compile(
-        r"x_+(\d+)_y_+(\d+)(\.jpg)"
-    )  # searches for this particular pattern only.
-    #a regular expression object
+    name = filename.strip()
 
-    mo = pattern.search(filename)
-    
-    x = int(mo.group(1))
-    y = int(mo.group(2))
-    
-    return (x, y)
+    patterns = [
+        # Labeled: ... x_<int> _ y_<int> .ext  -> (x, y) = (g1, g2)
+        (re.compile(r"x_+\s*(\d+)[_\s]*y_+\s*(\d+)\.(?:jpg|jpeg|tif|tiff)$", re.IGNORECASE), "labeled"),
+        # Unlabeled: ... <int> _ <int> .ext  -> interpret as (y, x) = (g1, g2), return (x, y) = (g2, g1)
+        (re.compile(r"(\d+)[_\s]+(\d+)\.(?:jpg|jpeg|tif|tiff)$", re.IGNORECASE), "unlabeled_yx"),
+    ]
+
+    for pat, kind in patterns:
+        m = pat.search(name)
+        if m:
+            if kind == "labeled":
+                x = int(m.group(1))
+                y = int(m.group(2))
+            else:  # unlabeled_yx
+                y = int(m.group(1))
+                x = int(m.group(2))
+            return (x, y)
+
+    raise ValueError(
+        f"Could not extract coordinates from filename: '{filename}'. "
+        "Expected patterns like 'x_<int>_y_<int>.jpg' or '<int>_<int>.tiff' (interpreted as y_x)."
+    )
+

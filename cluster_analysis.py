@@ -20,21 +20,23 @@ from matplotlib.lines import Line2D
 
 def gmm_clustering(scores, loc_roi, n_components=None, max_components=10, random_state=42):
     """
-    GMM clustering for pca scores
+    GMM clustering for PCA scores with coordinate-to-label mapping.
     
     Args:
-        scores (np.array): data (n_samples, n_components)
-        loc_roi : lists of coordinates
-        n_components (int/None): predefined clustering number
-        max_components (int): max clustering number when automatically searching 
-        random_state (int)
+        scores (np.ndarray): PCA scores or feature data of shape (n_samples, n_components).
+        loc_roi (list or np.ndarray): List of coordinates corresponding to each sample.
+        n_components (int or None): Predefined number of clusters. If None, the function 
+                                    will search for the optimal number of clusters.
+        max_components (int): Maximum number of clusters to consider when searching for optimal n.
+        random_state (int): Random seed for reproducibility.
     
-    Return:
-        gmm: models
-        cluster_labels (np.array): clustering labels
-        cluster_coords (dict): the dict of cluster label as keys with coordinates as values
-        optimal_n (int): 
-        silhouette (float): Silhouette Coefficient
+    Returns:
+        gmm (GaussianMixture): Fitted Gaussian Mixture Model.
+        cluster_coords (dict): Dictionary mapping cluster labels to lists of coordinates.
+        cluster_labels (np.ndarray): Cluster label assigned to each sample.
+        optimal_n (int): Optimal number of clusters determined (or user-defined).
+        silhouette (float): Silhouette coefficient of the clustering (higher is better).
+        coord_to_label (dict): Dictionary mapping each coordinate (tuple) to its cluster label.
     """
     loc_roi = np.asarray(loc_roi)
     assert len(scores) == len(loc_roi), "The sample number should be consistent."
@@ -55,6 +57,8 @@ def gmm_clustering(scores, loc_roi, n_components=None, max_components=10, random
         optimal_n = n_components[optimal_index]
         gmm, cluster_labels = models[optimal_index]
         silhouette = silhouettes[optimal_index]
+        # Print optimal clustering info
+        print(f"Optimal clustering number: {optimal_n}, silhouette: {silhouette:.3f}")
     else:
         optimal_n = n_components
     
@@ -62,14 +66,19 @@ def gmm_clustering(scores, loc_roi, n_components=None, max_components=10, random
         gmm = GaussianMixture(n_components=optimal_n, random_state=random_state)
         cluster_labels = gmm.fit_predict(scores)
         silhouette = silhouette_score(scores, cluster_labels) if optimal_n > 1 else np.nan
+        # Print self-defined clustering info
+        print(f"Self-defined clustering number: {optimal_n}, silhouette: {silhouette:.3f}")
     
     # Categorized by the labels
     cluster_coords = {}
+    coord_to_label = {}
     for label in np.unique(cluster_labels):
         mask = (cluster_labels == label)
         cluster_coords[label] = loc_roi[mask].tolist()
+        for coord in loc_roi[mask]:
+            coord_to_label[tuple(coord)] = label
     
-    return gmm, cluster_coords, cluster_labels, optimal_n, silhouette
+    return gmm, cluster_coords, coord_to_label, cluster_labels, optimal_n, silhouette
 
 def calculate_cluster_metrics(gmm_model, cluster_labels, scores):
     """
@@ -376,16 +385,47 @@ def plot_cluster_heatmap(cluster_coords, img_shape=(31, 31)):
 def plot_intra_cluster_variation_map(loc_roi, variation, cluster_labels, img_shape=(31, 31),
                                     default_cluster_cmap_names=None, cluster_name_map=None, anomalies_cluster_pca_coords3=None, ref1_pos=None, ref2_pos=None, reference_windows=None):
     """
-    Plots a heatmap showing intra-cluster variation. Each cluster/phase uses its
-    own colormap to highlight its internal variations.
-    
+    Plot an intra-cluster variation heatmap for EBSD/EDS or clustering results.
+
+    Each cluster is visualized with its own colormap, showing how samples vary 
+    internally (e.g., Mahalanobis distance). Central points, reference points, 
+    and anomalies are optionally highlighted.
+
     Args:
-        loc_roi (array): coordinates
-        variation (array):  Variation score (e.g., Mahalanobis dist) for each sample.
-        cluster_labels (array): Cluster assignment for each sample.
-        cluster_coords (dict): Coordinates grouped by labels
-        img_shape (tuple)
-        reference_windows (dict): Reference windows from find_best_window
+        loc_roi (array-like, shape (n_samples, 2)):
+            Array of (x, y) coordinates for each sample (ROI positions).
+        variation (array-like, shape (n_samples,)):
+            Variation score for each sample (e.g., Mahalanobis distance, 
+            intra-cluster deviation).
+        cluster_labels (array-like, shape (n_samples,)):
+            Cluster assignment (integer or categorical label) for each sample.
+        img_shape (tuple, default=(31, 31)):
+            Shape of the output image grid as (height, width).
+        default_cluster_cmap_names (list of str, optional):
+            List of matplotlib colormap names, one per cluster. If not provided, 
+            a default set will be chosen.
+        cluster_name_map (dict, optional):
+            Mapping from cluster_label → human-readable name to show in colorbars.
+        anomalies_cluster_pca_coords3 (array-like, optional):
+            List/array of anomaly coordinates (x, y) to mark in black.
+        ref1_pos (list of tuple, optional):
+            List of (x, y) reference points to highlight with solid outlines 
+            (colored according to cluster).
+        ref2_pos (list of tuple, optional):
+            List of (x, y) reference points to highlight with dashed outlines 
+            (colored according to cluster).
+        reference_windows (dict, optional):
+            Dictionary of reference windows from e.g. `find_best_window`. 
+            Expected format:
+                {cluster_id: {"window_points": [indices, ...]}, ...}
+
+    Returns:
+        None. Displays a matplotlib figure with:
+            - Heatmap of intra-cluster variation.
+            - Highlighted "central" points (minimum variation per cluster).
+            - Optional anomalies, reference windows, and reference points.
+            - One colorbar per cluster showing normalized variation.
+            - Legends for highlighted points.
     """
     
     loc_roi = np.asarray(loc_roi)

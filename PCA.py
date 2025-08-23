@@ -23,14 +23,53 @@ from skimage.metrics import structural_similarity as ssim
 
 
 
-def run_PCA(ROI,components):
+def run_PCA(ROI,components,h,w,slice_x,slice_y):
+    """
+    Perform Principal Component Analysis (PCA) on processed Electron Backscatter Diffraction (EBSD) patterns.
+    
+    This function processes a list of EBSD pattern files, applies signal processing to each pattern,
+    and then performs PCA dimensionality reduction on the processed patterns.
+    
+    Parameters:
+    ----------
+    ROI : list of str
+        List of file paths pointing to EBSD pattern files to be processed and analyzed.
+    
+    components : int
+        Number of principal components to compute and retain in the PCA transformation.
+    
+    h : int
+        Height of the original EBSD patterns before any processing or slicing.
+    
+    w : int
+        Width of the original EBSD patterns before any processing or slicing.
+    
+    slice_x : tuple of int
+        Slice coordinates in x-direction as (start, end) for focusing on specific parts 
+        of the Kikuchi patterns, typically to remove edge artifacts.
+    
+    slice_y : tuple of int
+        Slice coordinates in y-direction as (start, end) for focusing on specific parts 
+        of the Kikuchi patterns, typically to remove edge artifacts.
+    
+    Returns:
+    -------
+    pca_scores : numpy.ndarray
+        PCA transformed data with shape (n_samples, n_components), where n_samples is the 
+        number of processed patterns and n_components is the specified number of principal components.
+    
+    pca : sklearn.decomposition.PCA
+        Fitted PCA model object that can be used for further transformations or analysis.
+        This object contains attributes such as explained_variance_ratio_, components_, etc.
+    """
+    
     file_list = ROI
     bar = Bar("Processing", max=len(file_list))
     signal_processed = []
     
     for file in file_list:
         bar.next()
-        signal_processed.append(signal_process(file, flag="ROI"))  #31*31 EBSP with feature dimension of 150*150; But here is input_X 1*90000
+        signal_processed.append(signal_process(file, flag="ROI",pattern_height=h, pattern_width=w, slice_x=slice_x, slice_y=slice_y))  #31*31 EBSP with feature dimension of 150*150; But here is input_X 1*90000
         
     
     signal_processed = np.array(signal_processed).reshape(len(file_list),-1)
@@ -155,15 +194,31 @@ def _add_confidence_ellipse(ax, data, color, alpha):
     
 def _plot_pca(pca_scores, coord_dict, loc_roi, dim=2, ref1_pos=None, ref2_pos=None, anomalies=None, ellipse_alpha=0.3):
     """
-    PCA scatter map: visualization enhancement
+    Plot PCA scatter map of samples with optional annotations.
+
+    This function visualizes PCA scores (2D or 3D) of ROI samples and
+    overlays phase labels, reference points, anomalies, and confidence ellipses
+    for better interpretation of the data.
 
     Args:
-        pca_scores: trained by the ranking of roi coordinates
-        coord_dict : dictionary of coordinates as key and phase index as values
-        loc_roi : coordinates of roi
-        ref1_pos : coordinates of reference component 1
-        ref2_pos : coordinates of reference component 2
-        anomalies : coordinates of anomalies
+        pca_scores (np.ndarray):
+            Array of PCA-transformed data of shape (n_samples, n_components).
+            Must have at least `dim` components.
+        coord_dict (dict):
+            Mapping from (x, y) coordinate tuples to phase IDs.
+        loc_roi (array-like):
+            ROI coordinates of shape (n_samples, 2).
+            Each row is (x, y).
+        dim (int, default=2):
+            Number of PCA dimensions to plot (2 or 3).
+        ref1_pos (list[tuple] or np.ndarray, optional):
+            Coordinates of reference component 1 (highlighted with '*').
+        ref2_pos (list[tuple] or np.ndarray, optional):
+            Coordinates of reference component 2 (highlighted with 'P').
+        anomalies (np.ndarray, optional):
+            PCA coordinates of anomalous points to highlight with 'X'.
+        ellipse_alpha (float, default=0.3):
+            Transparency level for confidence ellipses (only applied in 2D).
         
     """
     assert dim in [2, 3]
@@ -286,15 +341,42 @@ def _plot_pca(pca_scores, coord_dict, loc_roi, dim=2, ref1_pos=None, ref2_pos=No
 # detect the anomalies out of the confidence eclipse
 def detect_anomalies_pca(pca_scores, coord_to_label, loc_roi):
     """
-    detect the anomalies out of the confidence eclipse and return the coordinates/ anomalies scores/ labels
-    phase category is obtained from the indexed file (manual cluster/ group)
+    Detect anomalies in PCA-transformed data using Mahalanobis distance.
+    
+    Anomalies are identified as points that lie outside the 95% confidence 
+    ellipse of each manually defined phase/group. The phase category for each 
+    point is obtained from `coord_to_label`.
+    
+    Parameters
+    ----------
+    pca_scores : np.ndarray
+        Array of shape (n_samples, n_components) representing PCA-transformed 
+        features of each sample.
+    coord_to_label : dict
+        Dictionary mapping coordinates (x, y) to a phase/cluster label. Points 
+        not in the dictionary are assigned label -1.
+    loc_roi : array-like
+        Array of coordinates of shape (n_samples, 2), corresponding to the 
+        rows in `pca_scores`.
+    
+    Returns
+    -------
+    anomalies : np.ndarray or None
+        PCA scores of the detected anomalies. Shape (n_anomalies, n_components).
+        Returns None if no anomalies are detected.
+    anomalies_coords : np.ndarray or None
+        Coordinates (x, y) of the detected anomalies. Shape (n_anomalies, 2).
+        Returns None if no anomalies are detected.
+    anomalies_coords_to_labels : dict or None
+        Dictionary mapping each anomaly coordinate (x, y) to its phase/cluster label.
+        Returns None if no anomalies are detected.
     """
     loc_roi = np.asarray(loc_roi)
     labels = np.array([coord_to_label.get((x, y), -1) for x, y in loc_roi])
     n_dim = pca_scores.shape[1]
     anomalies = []
     anomalies_coords = []
-    anomalies_labels = []
+    anomalies_coords_to_labels = {}
     
     for phase in np.unique(labels):
         mask = (labels == phase)
@@ -319,16 +401,18 @@ def detect_anomalies_pca(pca_scores, coord_to_label, loc_roi):
         anomalies.append(data[phase_anomaly_mask])
         anomalies_coords.append(coords[phase_anomaly_mask])
         
-        anomalies_labels.extend([phase] * np.sum(phase_anomaly_mask))
+        # Map coordinates to labels
+        for coord in coords[phase_anomaly_mask]:
+            anomalies_coords_to_labels[tuple(coord)] = phase
     if anomalies:
         anomalies = np.vstack(anomalies)
         anomalies_coords = np.vstack(anomalies_coords)
-        anomalies_labels = np.array(anomalies_labels)
+        
     else:
         anomalies = None
         anomalies_coords = None
-        anomalies_labels = None
-    return anomalies, anomalies_coords, anomalies_labels
+        anomalies_coords_to_labels = None
+    return anomalies, anomalies_coords, anomalies_coords_to_labels
 
 
 # denote the anomalies (box)

@@ -28,6 +28,7 @@ def img_normalization(pattern):
     # print('pattern_normalized')
     return pattern
 
+# old
 def coord_xmap_dict(xmap, step=0.05):
     """
     construct the mapping dictionary for the xmap and kikuchi patterns' x/y index
@@ -62,48 +63,169 @@ def coord_xmap_dict(xmap, step=0.05):
                 phase_dict[(ix, iy)] = pid
 
     return phase_dict
-    
+   
+def coord_phase_dict_from_dataframe(df):
+    """
+    Build a dictionary mapping (x_index, y_index) → phase_id 
+    from a DataFrame of EBSD/EDS scan data.
 
-def signal_process(temp, flag):
+    Args:
+        df (pd.DataFrame): Must contain columns 'x_indice', 'y_indice', 'phase_id'.
+        step (float): Scan step size (not used in indexing, just for reference).
+
+    Returns:
+        dict: phase_dict where keys are (ix, iy) tuples and values are phase_id.
+              Dictionary is filled in column-major order (x fixed, iterate over y).
+    """
+    
+    # Extract required columns
+    x_indices = df['x_indice'].values
+    y_indices = df['y_indice'].values
+    phase_ids = df['phase_id'].values
+    
+   
+    # Determine maximum indices
+    max_ix = np.max(x_indices)
+    max_iy = np.max(y_indices)
+    
+    # Initialize array with -1 (meaning "no phase")
+    phase_array = np.full((max_iy + 1, max_ix + 1), -1)
+    
+    # Fill phase array
+    for ix, iy, pid in zip(x_indices, y_indices, phase_ids):
+        phase_array[iy, ix] = pid
+    
+    # Build dictionary (column-major order: loop over y for each x)
+    phase_dict = {}
+    for ix in range(max_ix + 1):
+        for iy in range(max_iy + 1):
+            pid = phase_array[iy, ix]
+            if pid != -1:
+                phase_dict[(ix, iy)] = pid
+    
+    return phase_dict
+
+def get_processed_signals(ROI, h, w, slice_x, slice_y):
+    """
+    Process a list of ROI images and return flattened, normalized signal arrays.
+
+    This function applies `signal_process` to each image in the ROI list, crops the images
+    according to the specified slices, and reshapes the resulting signals into a 2D array
+    suitable for further analysis (e.g., PCA or machine learning).
+
+    Args:
+        ROI (list of str): List of image file paths or ROI identifiers to process.
+        h (int): Height of the input images.
+        w (int): Width of the input images.
+        slice_x (tuple of int): Start and end indices for the x-axis crop (slice_x_start, slice_x_end).
+        slice_y (tuple of int): Start and end indices for the y-axis crop (slice_y_start, slice_y_end).
+
+    Returns:
+        signal_processed (np.ndarray): 2D array of shape (num_images, num_features), where each row
+        corresponds to a flattened, processed signal from an ROI image.
+
+    Notes:
+        - Each image is first processed by `signal_process` with the provided crop and dimensions.
+        - The processed signals are flattened before returning.
+        - Example: For a 31x31 EBSP pattern with a feature dimension of 150x150, each signal will be
+          flattened to shape (1, 90000), and the final array will be of shape (num_images, 90000).
+    """
+    file_list = ROI
+    signal_processed = []
+    for file in file_list: 
+        signal_processed.append(signal_process(file, flag="ROI", h=h, w=w, slice_x=slice_x, slice_y=slice_y))
+        signal_processed = np.array(signal_processed).reshape(len(file_list),-1) 
+        
+    return signal_processed
+    
+def signal_process(temp, flag, pattern_height=239, pattern_width=239, 
+                  slice_x=(45, 195), slice_y=(45, 195)):
+    """
+    Process Electron Backscatter Diffraction (EBSD) pattern signals, including component extraction and ROI processing.
+    
+    Parameters:
+    ----------
+    temp : various types
+        - When flag="component": A 1D array that needs to be reshaped to (scan_rows, scan_cols, pattern_height, pattern_width)
+        - When flag="ROI": A file path string pointing to the EBSD image file to be read
+    
+    flag : str
+        Processing mode identifier:
+        - "component": Process component extraction, input is an array, output is processed component data
+        - "ROI": Process region of interest, input is a file path, output is processed ROI data
+    
+    pattern_height : int, optional
+        Height of the EBSD pattern (default: 239)
+    
+    pattern_width : int, optional
+        Width of the EBSD pattern (default: 239)
+    
+    slice_x : tuple, optional
+        Slice coordinates in x-direction as (start, end) (default: (45, 195))
+    
+    slice_y : tuple, optional
+        Slice coordinates in y-direction as (start, end) (default: (45, 195))
+    
+    Returns:
+    -------
+    numpy.ndarray
+        - When flag="component": Returns processed component data with shape (pattern_height * pattern_width,)
+        - When flag="ROI": Returns processed ROI data with shape (1, pattern_height * pattern_width)
+    """
+    
+    # Extract slice coordinates from tuples
+    slice_x_start, slice_x_end = slice_x
+    slice_y_start, slice_y_end = slice_y
     
     if flag == "component":
-        c1 = kp.signals.EBSD(np.reshape(temp, (3, 3, 239, 239)))  #Input:the dimension of scan points and pattern height, width; Return: EBSD Object
-        c2 = c1.isig[45:195, 45:195] #slice to focus on the specific parts of the kikuchi patterns? remove the edges with artifacts?
-        c2.average_neighbour_patterns(window="gaussian", std=1) #average the EBSP with it neighbors
+        # Reshape input array to EBSD object
+        c1 = kp.signals.EBSD(np.reshape(temp, (3, 3, pattern_height, pattern_width)))
+        
+        # Slice to focus on specific parts of Kikuchi patterns, remove edges with artifacts
+        # Corrected order: x first, then y
+        c2 = c1.isig[slice_x_start:slice_x_end, slice_y_start:slice_y_end]
+        
+        # Average EBSP with its neighbors using Gaussian window
+        c2.average_neighbour_patterns(window="gaussian", std=1)
+        
+        # Correct dynamic background variation in EBSD
         c2.remove_dynamic_background(
             operation="subtract",  # Default
             filter_domain="frequency",  # Default
-            std=8,  # Default is 1/8 of the pattern width
+            std=8,  # Default is 1/8 of pattern width
             truncate=4,  # Default
             inplace=True,
-        ) #correct the dynamic background variation in EBSD
-        comp = c2.inav[0, 0].data #select the first EBSP in the 3*3 windows
-        comp = img_normalization(comp).flatten() #return a copy of array collapsed into one dimension pixel width * height
-
+        )
+        
+        # Select first EBSP in the 3x3 window
+        comp = c2.inav[0, 0].data
+        
+        # Return a copy of array collapsed into one dimension (pixel width * height)
+        comp = img_normalization(comp).flatten()
         return comp
 
     elif flag == "ROI":
-    #return normalized EBSD object, every EBSD has the feature dimensions of 300*300
-        # file = [lis[0] for lis in temp]
+        # Return normalized EBSD object, every EBSD has feature dimensions of pattern_width * pattern_height
         file = temp
-        temp = cv2.imread(file, 0)
-        #print(file)
-        temp2 = (kp.signals.EBSD(temp)).isig[45:195, 45:195]
+        temp_img = cv2.imread(file, 0)
+        
+        # Create EBSD signal and apply slicing with corrected order
+        temp2 = (kp.signals.EBSD(temp_img)).isig[slice_x_start:slice_x_end, slice_y_start:slice_y_end]
+        
+        # Remove dynamic background
         temp3 = temp2.remove_dynamic_background(
             operation="subtract",  # Default
             filter_domain="frequency",  # Default
-            std=8,  # Default is 1/8 of the pattern width
+            std=8,  # Default is 1/8 of pattern width
             truncate=4,  # Default
             inplace=False,
         )
 
-        dump = img_normalization(temp3.data).flatten() #dump (90000,)
-        #print(np.shape(dump))
+        dump = img_normalization(temp3.data).flatten()  # dump (pattern_width * pattern_height,)
         shape = np.shape(dump)[0] 
         input_X = np.reshape(dump, (1, shape))
 
         return input_X
-
 # Input: Ca, Cb are lists of location of EBSPs
 def get_components(Ca, Cb):
     """
