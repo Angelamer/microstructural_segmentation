@@ -61,7 +61,7 @@ def read_data(path_to_kikuchi, path_to_phasemap):
 
 #select the pattern within the ROI
 #return list of (path+key)= the location of each EBSP
-def set_component(x_range, y_range, path, grid, plot_flag= True):
+def set_component(x_range, y_range, path, grid, image_path, plot_flag= True):
     x_l = x_range[0]
     x_u = x_range[1]
 
@@ -79,13 +79,13 @@ def set_component(x_range, y_range, path, grid, plot_flag= True):
             # roi[key].append(value)
             # path+key = file location?
             roi.append((path + key, x, y))
-    img = mpimg.imread(path + "Scan3_cropped_phasemap.png")
+    img = mpimg.imread(image_path)
     if plot_flag:
         utils._plot_component(roi, grid, img)
     else:
         pass
     # print(roi)
-    return [lis[0] for lis in roi], [lis[1:] for lis in roi]
+    return [lis[0] for lis in roi], np.array([lis[1:] for lis in roi])
 
 
 def set_ROI(x_range, y_range, path, grid, path_to_phasemap):
@@ -125,7 +125,7 @@ def set_ROI(x_range, y_range, path, grid, path_to_phasemap):
         x, y = xy[0], xy[1]
         count += 1
 
-        if (x_l <= x <= x_u) and (y_l <= y <= y_u):
+        if (x_l <= x < x_u) and (y_l <= y < y_u):
             roi.append((path + key, x, y))
             index.append(count)
 
@@ -155,7 +155,7 @@ def _get_grid(names):
     """
 
     for file in names:
-        if file.endswith(".jpg") or file.endswith(".tiff"):
+        if file.endswith(".jpg") or file.endswith(".tiff") or file.endswith(".jpeg"):
             coords[file] = _coordinate_extract(file)
 
     # Convert dict values to numpy array

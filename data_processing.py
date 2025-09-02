@@ -13,7 +13,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from PIL import Image
 from tqdm import tqdm
-
+from typing import List, Sequence, Union, Optional
 
 def img_normalization(pattern):
     """
@@ -226,43 +226,147 @@ def signal_process(temp, flag, pattern_height=239, pattern_width=239,
         input_X = np.reshape(dump, (1, shape))
 
         return input_X
-# Input: Ca, Cb are lists of location of EBSPs
-def get_components(Ca, Cb):
+
+
+
+# def get_components(Ca, Cb):
+#     """
+#     to get the normalized intensities of averaged EBSPs within selected points/ components
+#     """
+#     dim1 = int(np.sqrt(len(Ca)))
+#     dim2 = int(np.sqrt(len(Cb)))
+#     if dim1 != 3 or dim2 != 3:
+#         print("The component grid dimensions is not 3x3. Must be 3x3 ")
+
+#     # component 1
+#     file_list_arr = np.reshape(Ca, (dim1, dim2))  # only Ca is read
+#     print("The component C1 grid shape is", np.shape(file_list_arr))
+#     temp = []
+#     for i in range(0, 3):
+#         for j in range(0, 3):
+#             # print(file_list_arr[i][j])
+#             temp_file = cv2.imread(file_list_arr[i][j], 0) #grey value
+#             # print(temp_file)
+#             temp.append(temp_file)
+
+#     comp1 = signal_process(temp, flag="component")
+
+#     # component 2
+#     file_list_arr = np.reshape(Cb, (dim1, dim2))  # only Cb is read
+#     print("The component C2 grid shape is", np.shape(file_list_arr))
+#     temp = []
+#     for i in range(0, 3):
+#         for j in range(0, 3):
+#             temp_file = cv2.imread(file_list_arr[i][j], 0)
+#             temp.append(temp_file)
+#     comp2 = signal_process(temp, flag="component")
+
+#     components = np.stack((comp1, comp2)) #Join a sequence of arrays along a new axis
+
+#     return components
+
+#
+def get_components(
+    components_files: Sequence[Sequence[Union[str, np.ndarray]]],
+    grid_dim: Optional[int] = None,
+    normalize: Optional[str] = None,   # None | "l2" | "minmax"
+    h=200,
+    w=200,
+    slice_x=(0,100),
+    slice_y=(0,100)
+) -> np.ndarray:
     """
-    to get the normalized intensities of averaged EBSPs within selected points/ components
+    Build component signals from multiple 3x3 (or NxN) tiles and stack them.
+
+    Each component is provided as a flat list of N*N tiles (file paths or
+    already-loaded grayscale arrays). For every component we:
+      1) reshape to (N, N),
+      2) load tiles as grayscale (if paths),
+      3) call `signal_process(tiles, flag="component")`,
+      4) optionally normalize the resulting 1D signal.
+
+    Args:
+        components_files:
+            A sequence where each item is a flat list/tuple of length N*N for
+            one component. Example: [Ca, Cb, Cc], where Ca is a list of 9
+            file paths (3x3).
+        grid_dim:
+            If given, enforce that each component has exactly grid_dim*grid_dim
+            tiles. If None, infer N = int(sqrt(len(component))).
+        normalize:
+            Optional normalization applied per component signal:
+              - None: no normalization
+              - "l2":   divide by L2 norm
+              - "minmax": map to [0, 1] using per-signal min/max
+
+    Returns:
+        components: np.ndarray of shape (K, D)
+            K = number of components, D = length of the processed signal
+            returned by `signal_process(..., flag="component")`.
+
+    Notes:
+        - This expects a function `signal_process(tiles, flag="component")`
+          available in scope that accepts a list of N*N grayscale arrays and
+          returns a 1D signal for that component.
+        - Tiles are read with `cv2.imread(path, 0)` if strings are provided.
     """
-    dim1 = int(np.sqrt(len(Ca)))
-    dim2 = int(np.sqrt(len(Cb)))
-    if dim1 != 3 or dim2 != 3:
-        print("The component grid dimensions is not 3x3. Must be 3x3 ")
 
-    # component 1
-    file_list_arr = np.reshape(Ca, (dim1, dim2))  # only Ca is read
-    print("The component C1 grid shape is", np.shape(file_list_arr))
-    temp = []
-    for i in range(0, 3):
-        for j in range(0, 3):
-            # print(file_list_arr[i][j])
-            temp_file = cv2.imread(file_list_arr[i][j], 0) #grey value
-            # print(temp_file)
-            temp.append(temp_file)
+    def _load_gray(x):
+        if isinstance(x, np.ndarray):
+            # assume already grayscale
+            return x
+        if isinstance(x, str):
+            img = cv2.imread(x, 0)
+            if img is None:
+                raise FileNotFoundError(f"Failed to read image: {x}")
+            return img
+        raise TypeError(f"Tile must be a path or numpy array, got {type(x)}")
 
-    comp1 = signal_process(temp, flag="component")
+    processed = []
+    for idx, comp in enumerate(components_files):
+        comp = list(comp)
+        if grid_dim is None:
+            n = int(np.sqrt(len(comp)))
+            if n * n != len(comp):
+                raise ValueError(
+                    f"Component #{idx}: length {len(comp)} is not a perfect square; "
+                    "please pass grid_dim explicitly."
+                )
+        else:
+            n = int(grid_dim)
+            if len(comp) != n * n:
+                raise ValueError(
+                    f"Component #{idx}: expected {n*n} tiles, got {len(comp)}."
+                )
 
-    # component 2
-    file_list_arr = np.reshape(Cb, (dim1, dim2))  # only Cb is read
-    print("The component C2 grid shape is", np.shape(file_list_arr))
-    temp = []
-    for i in range(0, 3):
-        for j in range(0, 3):
-            temp_file = cv2.imread(file_list_arr[i][j], 0)
-            temp.append(temp_file)
-    comp2 = signal_process(temp, flag="component")
+        # reshape only for clarity (we iterate by row/col below)
+        _ = np.reshape(comp, (n, n))
 
-    components = np.stack((comp1, comp2)) #Join a sequence of arrays along a new axis
+        tiles = []
+        for i in range(n):
+            for j in range(n):
+                tiles.append(_load_gray(_[i][j]))
 
+        vec = signal_process(tiles, flag="component", pattern_height=h, pattern_width=w, slice_x=slice_x, slice_y=slice_y)  # expects 1D vector
+        vec = np.asarray(vec).ravel()
+
+        if normalize is not None:
+            if normalize.lower() == "l2":
+                denom = np.linalg.norm(vec) + 1e-12
+                vec = vec / denom
+            elif normalize.lower() == "minmax":
+                vmin, vmax = np.min(vec), np.max(vec)
+                if vmax > vmin:
+                    vec = (vec - vmin) / (vmax - vmin)
+                else:
+                    vec = np.zeros_like(vec)
+            else:
+                raise ValueError(f"Unknown normalize='{normalize}'")
+
+        processed.append(vec)
+
+    components = np.stack(processed, axis=0)  # (K, D)
     return components
-
 
 def get_eds_average(pos_X, pos_Y, edax, type= 'component'):
     """

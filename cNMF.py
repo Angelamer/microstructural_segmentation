@@ -13,6 +13,7 @@ Licensed under GNU GPL3, see license file LICENSE_GPL3.
 from data_processing import signal_process, get_eds_average
 import torch
 import numpy as np
+import pandas as pd
 import os
 import cv2
 from constrainedmf.nmf.models import NMF
@@ -25,6 +26,7 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.patches import Rectangle
 from matplotlib.lines import Line2D
 from skimage.metrics import structural_similarity as ssim
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 torch.manual_seed(42)
 np.random.seed(42)
 
@@ -32,11 +34,12 @@ def constrained_nmf(X, components):
     input_H = [
         torch.tensor(component[None, :], dtype=torch.float) for component in components
     ]
+    n = len(components)
     #print(X.shape)
     #X.shape=(1,pixel width*height),W.shape=(1,2),H.shape(2,pixel width*height)
     nmf = NMF(
         X.shape,
-        n_components=2,
+        n_components=n,
         initial_components=input_H,
         fix_components=[True for _ in range(len(input_H))],
     )
@@ -60,7 +63,7 @@ def normalize_sum(lst):
         return [0.0 for _ in lst]
     return [x / total for x in lst]
 
-def run_cNMF(ROI, components):
+def run_cNMF(ROI, components,height, width, slice_x, slice_y):
     file_list = ROI #path for EBSPs
     weights = []
     mse=[]
@@ -70,7 +73,7 @@ def run_cNMF(ROI, components):
     for file in file_list:
         bar.next()
 
-        input_X = signal_process(file, flag="ROI")  #ROI width*height EBSP with feature dimension of pixel width*height; But here is input_X 1*pixel width*height
+        input_X = signal_process(file, flag="ROI",pattern_height=height, pattern_width=width, slice_x=slice_x, slice_y=slice_y)  #ROI width*height EBSP with feature dimension of pixel width*height; But here is input_X 1*pixel width*height
         
         OUTPUT = constrained_nmf(input_X, components)
         
@@ -363,17 +366,16 @@ def detect_anomalies_cnmf(weights, coord_dict, loc_roi):
     return np.vstack(anomalies) if anomalies else None, np.array(anomalies_coords) if anomalies_coords else None
 
 # denote the anomalies (box)
-def _add_boxes(loc_roi, coords, ax, color, linewidth, hatch=None, alpha=1.0):
+def _add_boxes(loc_roi, roi_height, roi_width, coords, ax, color, linewidth, hatch=None, alpha=1.0):
     # find the relative coordinates of reference or anomalies within roi
     # reshape loc_roi
-    loc_roi_reshaped = loc_roi.reshape((31, 31, 2))
-
-    # map the coordinates list to local positions
+    loc_roi_reshaped = loc_roi.reshape((roi_height, roi_width, 2))
     coord_to_index = {}
-    for i in range(31):
-        for j in range(31):
-            coord = tuple(loc_roi_reshaped[i, j])
-            coord_to_index[coord] = (i, j)
+    # map the coordinates list to local positions
+    for j in range(roi_height):
+        for i in range(roi_width):
+            coord = tuple(loc_roi_reshaped[j, i])  # Note: j,i not i,j
+            coord_to_index[coord] = (i, j)  # Store as (col, row)
     # search the positions of interested anomalies/ reference within roi
     positions = []
     for each in coords:
@@ -466,81 +468,116 @@ def plot_weight_map_cnmf(weights, loc_roi, anomalies_coords=None, ref1_pos=None,
     plt.show()
     
     
-def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, anomalies_dict=None, ref1_pos=None, 
-                                    ref2_pos=None, component=0, boundary_locs=None):
+def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, roi_height, roi_width, anomalies_dict=None, ref_pos_list=None,   # list of arrays/lists; each inner is shape (M_i, 2) coords
+                                    component=0, boundary_locs=None):
     """
-    Plot the weight map with locations of references, anomalies and boundary points,
-    and calculate similarity metrics between anomalies and boundary points.
-    
-    Args:
-        weights (ndarray): Weight values for each location
-        loc_roi (ndarray): Coordinates of all points
-        anomalies_dict (dict): Dictionary of anomaly points (key: coordinate, value: label index)
-        ref1_pos (ndarray): Coordinates for reference position 1
-        ref2_pos (ndarray): Coordinates for reference position 2
-        component (int): Which component to visualize (0 or 1)
-        boundary_locs (ndarray): Coordinates of boundary points
-        
-    Returns:
-        jaccard_index (float): Jaccard similarity between anomalies and boundary points
-        overlap_coefficient (float): Overlap coefficient between anomalies and boundary points
+    Plot a single cNMF component weight map (2D), with overlays:
+      - anomalies (colored by label),
+      - any number of reference sets (ref_pos_list),
+      - boundary points.
+
+    Notes
+    -----
+    * The function assumes `weights` are ordered consistently with `loc_roi`,
+      and that `loc_roi` covers a rectangular grid of shape (roi_height, roi_width)
+      using the same order you used to build `weights`.
+    * Overlays are drawn as small square boxes at the nearest grid cells,
+      using `_add_boxes(loc_roi, coords_to_mark, ax, color, linewidth, ...)`.
+      Make sure `_add_boxes` is available in your namespace.
+
+    Args
+    ----
+    weights : np.ndarray
+        (N, K) cNMF weights for N samples over K components.
+    loc_roi : np.ndarray
+        (N, 2) integer coordinates for each sample.
+    roi_height, roi_width : int
+        The ROI grid shape (rows, cols). Must satisfy N == roi_height * roi_width.
+    anomalies_dict : dict or None
+        Mapping {(x, y): label, ...}. All points appearing in the dict are drawn;
+        labels are mapped to distinct colors.
+    ref_pos_list : list or None
+        List of reference sets. Each element is an array-like of shape (M_i, 2)
+        giving (x,y) coords to highlight. Each set is given a distinct marker/color.
+        Example: [ref1, ref2, ref3], where ref1/ref2/ref3 are arrays of (x,y).
+    component : int
+        Which component index to visualize (0-based).
+    boundary_locs : array-like or None
+        A list/array of (x, y) coords for boundary points to overlay.
+
+    Returns
+    -------
+    jaccard_index : float or None
+    overlap_coefficient : float or None
+        Similarity metrics between `anomalies_dict` keys and `boundary_locs`.
+        Returned only if both are provided; otherwise None, None.
     """
+     # ---- basic checks ----
+    weights = np.asarray(weights, float)
     loc_roi = np.asarray(loc_roi)
-    # Reshape weights to match the grid
-    weight_map = np.reshape(weights, (31, 31, 2))
+    N, K = weights.shape
+    if N != roi_height * roi_width:
+        raise ValueError(f"weights rows ({N}) must equal roi_height*roi_width ({roi_height*roi_width}).")
+    if component < 0 or component >= K:
+        raise ValueError(f"component={component} is out of range [0, {K-1}].")
+    if loc_roi.shape != (N, 2):
+        raise ValueError("loc_roi must be (N, 2).")
+    
+    # weight_map_3d: (roi_height, roi_width, K)
+    weight_map = weights.reshape(roi_height, roi_width, K)
     
     # Obtain the specific component of weight
-    data = np.transpose(weight_map[:, :, component])
+    data = weight_map[:, :, component]
     
     # Create colormap (green-white-red)
     colors = ["#2ca02c", "#ffffff", "#d62728"]
-    abs_max = np.max(np.abs(weights))
-    norm = TwoSlopeNorm(vmin=0, vcenter=0.5, vmax=abs_max)
+    
     cmap_custom = LinearSegmentedColormap.from_list("custom_diverging", colors)
     
-    # Create figure
-    plt.figure(figsize=(12, 10))
-    ax = plt.gca()
+    # Safer vmax: the 95th percentile of the chosen component (avoid outliers)
+    comp_vals = data.ravel()
+    vmax = float(np.nanpercentile(comp_vals, 95))
+    vmax = max(vmax, 1e-6)  # avoid zero
+    # With this:
+    norm = TwoSlopeNorm(vmin=0.0, vcenter=0.5, vmax=vmax)
+
     
-    # Plot weight map
-    im = ax.imshow(data, cmap=cmap_custom, norm=norm, interpolation='nearest')
-    
-    # Prepare legend elements
+   # ---- plot base map ----
+    fig, ax = plt.subplots(figsize=(12, 10))
+    im = ax.imshow(data, cmap=cmap_custom, norm=norm, interpolation='nearest', origin='upper')
+
     legend_elements = []
     
     # === Add anomalies points with different colors per label ===
     if anomalies_dict is not None and len(anomalies_dict) > 0:
-        # Generate distinct colors for each label
-        unique_labels = np.unique(list(anomalies_dict.values()))
+        unique_labels = sorted(set(anomalies_dict.values()))
         color_map = plt.cm.get_cmap('tab10', len(unique_labels))
-        
-        for i, label in enumerate(unique_labels):
-            # Get coordinates for this label
+        for label in unique_labels:
             label_coords = [coord for coord, lbl in anomalies_dict.items() if lbl == label]
-            color = color_map(i)
-            
-            # Add to plot with unique color
-            _add_boxes(loc_roi, label_coords, ax, color, 2, hatch='////', alpha=0.8)
-            
-            # Add legend entry
+            color = color_map(label)  # Use label for color index
+            _add_boxes(loc_roi, roi_height, roi_width, label_coords, ax, color, 2, hatch='////', alpha=0.8)
+    
+    
+    # ---- references: any number of sets ----
+    # give each set a distinct marker/color
+    if ref_pos_list:
+        ref_markers = ['*', 'P', 'X', 'D', '^', 's', 'o', 'v', '<', '>']
+        ref_colors  = plt.cm.Set2(np.linspace(0, 1, min(10, len(ref_pos_list))))
+        for idx, ref_set in enumerate(ref_pos_list):
+            if ref_set is None or len(ref_set) == 0:
+                continue
+            ref_arr = np.asarray(ref_set)
+            if ref_arr.ndim != 2 or ref_arr.shape[1] != 2:
+                raise ValueError(f"ref_pos_list[{idx}] must be array-like of shape (M, 2).")
+            # We reuse _add_boxes; the marker style is represented by legend only
+            _add_boxes(loc_roi, roi_height, roi_width, ref_arr, ax, ref_colors[idx % len(ref_colors)], linewidth=3)
             legend_elements.append(
-                Line2D([0], [0], color=color, lw=2, 
-                    label=f'Anomaly (Label {label})')
+                Line2D([0], [0],
+                       marker=ref_markers[idx % len(ref_markers)],
+                       color=ref_colors[idx % len(ref_colors)],
+                       markerfacecolor='none', markeredgecolor=ref_colors[idx % len(ref_colors)],
+                       lw=0, label=f'Reference set {idx+1}')
             )
-    
-    
-    # Add reference points
-    if ref1_pos is not None and len(ref1_pos) > 0:
-        legend_elements.append(
-            Line2D([0], [0], color='red', lw=3, label='Reference 1')
-        )
-        _add_boxes(loc_roi, ref1_pos, ax, 'red', 3)
-    
-    if ref2_pos is not None and len(ref2_pos) > 0:
-        legend_elements.append(
-            Line2D([0], [0], color='blue', lw=3, label='Reference 2')
-        )
-        _add_boxes(loc_roi, ref2_pos, ax, 'blue', 3)
     
     # Add boundary points with black dashed boxes and cross hatch
     if boundary_locs is not None and len(boundary_locs) > 0:
@@ -548,7 +585,7 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, anomalies_dict=None, r
             Line2D([0], [0], color='black', lw=2, label='Boundary Points')
         )
 
-        _add_boxes(loc_roi, boundary_locs, ax, 'black', 2)
+        _add_boxes(loc_roi,roi_height, roi_width, boundary_locs, ax, 'black', 2)
     
     # Add legend
     if legend_elements:
@@ -556,13 +593,12 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, anomalies_dict=None, r
     
     # Color bar settings
     cbar = plt.colorbar(im)
-    cbar.set_ticks([0, 0.5, abs_max])
-    cbar.ax.set_yticklabels([
-        f'Component {component+1} = 0\n(green)', 
-        'Both= 0.5\n(white)', 
-        f'Component {2 if component==0 else 1} = {abs_max}\n(red)'
-    ], fontsize=10)
-
+    cbar.set_ticks([0, 0.5, vmax])
+    cbar.set_ticklabels([
+        f'0.0 (green)',
+        '0.5 (white)',
+        f'{vmax:.2f} (red)'
+    ])
     plt.title(f"Component {component+1} Weight Map with Annotations")
     plt.axis('off')
     plt.tight_layout()
@@ -600,7 +636,190 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, anomalies_dict=None, r
     
     return jaccard_index, overlap_coefficient
 
+def analyze_classify_boundary_and_plot(
+    weights: np.ndarray,
+    loc: np.ndarray,                                  # (N,2) integer coordinates
+    coor_phase_dict: dict,                            # {(x,y): phase_id}  -- “ground truth” for eval
+    phase_labels: dict,                               # {phase_id: phase_name}
+    cluster_name_map: dict,                           # {cluster_or_label_id: phase_name}
+    roi_height: int,
+    roi_width: int,
+    *,
+    component: int = 0,
+    anomalies_dict: dict | None = None,               # {(x,y): label}
+    ref_pos_list: list | None = None,                 # [array_like(M_i,2), ...]
+    coord_to_label: dict | None = None,               # NEW: {(x,y) -> label_id}, overrides argmax(labels)
+    figsize=(12, 10),
+    normalize: bool = False
+):
+    """
+    One-stop routine:
+      1) Build a (x,y)->label_id map for all samples:
+         - If coord_to_label is provided, use it (and fall back to argmax only for missing coords).
+         - Else, use argmax(weights).
+      2) Evaluate against coor_phase_dict on overlapping coordinates.
+      3) Detect boundary points (4-neighborhood) using the final label map.
+      4) Plot a single component's weight map (heatmap) with overlays; the "white"
+         level is centered at the mean of max(weights[row]) over boundary pixels
+         (falls back to 0.5 if no boundary).
+    """
+    # -------- basic checks --------
+    weights = np.asarray(weights, float)
+    loc = np.asarray(loc)
+    N, K = weights.shape
+    if loc.shape != (N, 2):
+        raise ValueError("loc must have shape (N, 2).")
+    if N != roi_height * roi_width:
+        raise ValueError(f"N must equal roi_height*roi_width ({roi_height*roi_width}).")
+    if not (0 <= component < K):
+        raise ValueError(f"component={component} out of range [0,{K-1}].")
 
+    # (x,y) -> row idx
+    loc2idx = {tuple(map(int, loc[i])): i for i in range(N)}
+
+    # ---------- normalize per-row (optional) ----------
+    if normalize:
+        sums = weights.sum(axis=1, keepdims=True)
+        sums[sums == 0.0] = 1.0
+        weights = weights / sums
+
+    # ---------- labels: coord_to_label overrides argmax ----------
+    argmax_labels = np.argmax(weights, axis=1)  # (N,)
+    pred_loc2label = {}
+    for xy, i in loc2idx.items():
+        if coord_to_label is not None and xy in coord_to_label:
+            pred_loc2label[xy] = int(coord_to_label[xy])
+        else:
+            pred_loc2label[xy] = int(argmax_labels[i])
+
+    # ---------- evaluation vs ground truth (overlapping coords) ----------
+    common_coords = [xy for xy in pred_loc2label.keys() if xy in coor_phase_dict]
+    if len(common_coords) == 0:
+        acc = np.nan
+        cm_df = pd.DataFrame()
+        cls_report = "No overlapping coordinates to evaluate."
+    else:
+        y_true_names = [str(phase_labels.get(coor_phase_dict[xy], "Unknown")) for xy in common_coords]
+        y_pred_names = [str(cluster_name_map.get(pred_loc2label[xy], f"cluster_{pred_loc2label[xy]}"))
+                        for xy in common_coords]
+        acc = accuracy_score(y_true_names, y_pred_names)
+        labels_sorted = sorted(set(y_true_names) | set(y_pred_names))
+        cm = confusion_matrix(y_true_names, y_pred_names, labels=labels_sorted)
+        cm_df = pd.DataFrame(cm,
+                             index=pd.Index(labels_sorted, name="True"),
+                             columns=pd.Index(labels_sorted, name="Pred"))
+        cls_report = classification_report(y_true_names, y_pred_names,
+                                           labels=labels_sorted, zero_division=0)
+
+    # ---------- boundary via 4-neighborhood on *final* labels ----------
+    boundary_set = set()
+    for (x, y), lab in pred_loc2label.items():
+        # 4-neighbors (left, right, up, down)
+        for nb in ((x-1, y), (x+1, y), (x, y-1), (x, y+1)):
+            if nb in pred_loc2label and pred_loc2label[nb] != lab:
+                boundary_set.add((x, y))
+                break
+    # (optional) consistent order for plotting
+    boundary_locs = sorted(boundary_set, key=lambda t: (t[1], t[0]))
+
+    # ---------- plotting: component weight heatmap ----------
+    weight_map = weights.reshape(roi_height, roi_width, K)
+    data = weight_map[:, :, component]
+
+    # center white at mean of max(weights[row]) restricted to boundary pixels
+    if len(boundary_locs) > 0:
+        max_vals_on_boundary = []
+        for xy in boundary_locs:
+            idx = loc2idx.get(xy, None)
+            if idx is not None:
+                max_vals_on_boundary.append(float(np.max(weights[idx])))
+        vcenter = float(np.mean(max_vals_on_boundary)) if len(max_vals_on_boundary) > 0 else 0.5
+    else:
+        vcenter = 0.5
+
+    # green—white—red with white at vcenter
+    colors = ["#2ca02c", "#ffffff", "#d62728"]
+    cmap_custom = LinearSegmentedColormap.from_list("custom_diverging", colors)
+
+    comp_vals = data.ravel()
+    if np.isfinite(comp_vals).any():
+        vmax = float(np.nanpercentile(comp_vals, 95))
+    else:
+        vmax = 1.0
+    vmax = max(vcenter + 1e-6, vmax)  # ensure vmax > vcenter
+    norm = TwoSlopeNorm(vmin=0.0, vcenter=vcenter, vmax=vmax)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    im = ax.imshow(data, cmap=cmap_custom, norm=norm,
+                   interpolation='nearest', origin='upper')
+
+    legend_elements = []
+
+    # anomalies (group by label)
+    if anomalies_dict:
+        unique_labels = sorted(set(anomalies_dict.values()))
+        color_map = plt.cm.get_cmap('tab10', len(unique_labels))
+        for idx_c, lab in enumerate(unique_labels):
+            coords = [xy for xy, L in anomalies_dict.items() if L == lab]
+            _add_boxes(loc, roi_height, roi_width, coords, ax,
+                       color=color_map(idx_c), linewidth=2, hatch='////', alpha=0.85)
+            legend_elements.append(Line2D([0],[0], color=color_map(idx_c), lw=2, label=f"Anomaly {lab}"))
+
+    # reference sets (any number)
+    if ref_pos_list:
+        ref_colors = plt.cm.Set2(np.linspace(0, 1, min(10, len(ref_pos_list))))
+        ref_markers = ['*', 'P', 'X', 'D', '^', 's', 'o', 'v', '<', '>']
+        for i_set, ref_set in enumerate(ref_pos_list):
+            if ref_set is None or len(ref_set) == 0:
+                continue
+            ref_arr = np.asarray(ref_set)
+            if ref_arr.ndim != 2 or ref_arr.shape[1] != 2:
+                raise ValueError(f"ref_pos_list[{i_set}] must be array-like of shape (M,2).")
+            _add_boxes(loc, roi_height, roi_width, ref_arr, ax,
+                       color=ref_colors[i_set % len(ref_colors)], linewidth=3, hatch=None, alpha=1.0)
+            legend_elements.append(
+                Line2D([0],[0], marker=ref_markers[i_set % len(ref_markers)],
+                       color=ref_colors[i_set % len(ref_colors)], markerfacecolor='none',
+                       markeredgecolor=ref_colors[i_set % len(ref_colors)], lw=0,
+                       label=f"Reference {i_set+1}")
+            )
+
+    # boundaries (black boxes)
+    if len(boundary_locs) > 0:
+        _add_boxes(loc, roi_height, roi_width, boundary_locs, ax,
+                   color='black', linewidth=2, hatch=None, alpha=1.0)
+        legend_elements.append(Line2D([0],[0], color='black', lw=2, label='Boundary'))
+
+    # legend
+    if legend_elements:
+        ax.legend(handles=legend_elements, loc='lower center',
+                  bbox_to_anchor=(0.5, -0.08), ncol=3)
+
+    # colorbar
+    cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_ticks([0.0, vcenter, vmax])
+    cbar.set_ticklabels([f"0.0 (green)",
+                         f"{vcenter:.3f} (white @ boundary mean max)",
+                         f"{vmax:.3f} (red)"])
+
+    ax.set_title(f"Component {component+1} Weight Map (labels/boundary from coord_to_label if provided)")
+    ax.set_axis_off()
+    plt.tight_layout()
+    plt.show()
+
+    metrics = {
+        "accuracy": float(acc) if acc == acc else np.nan,
+        "confusion_matrix": cm_df,
+        "classification_report": cls_report
+    }
+    # boundary_locs as dict {coord -> label_id}
+    boundary_dict = {xy: pred_loc2label[xy] for xy in boundary_locs}
+    return {
+        "pred_loc2label": pred_loc2label,
+        "metrics": metrics,
+        "boundary_dict": boundary_dict
+    }
+    
 def reconstruct_weighted_signals(
     file_list,
     loc_array,             # (n_files, 2) -> (x, y)

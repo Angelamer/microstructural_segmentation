@@ -901,6 +901,333 @@ def plot_cnmf_scatter_with_boundary(weights, loc, cluster_labels, optimal_n,
     
     return boundary_mask, boundary_scores, boundary_locs, boundary_labels, slope, intercept
 
+def plot_cnmf_weights_projected(
+    weights,                 # (N, K)
+    loc,                     # (N, 2) coordinates (x,y)
+    cluster_labels=None,     # (N,) or None
+    comps=(0, 1),            # tuple of component indices to plot (len=2 or 3)
+    mode="2d",               # "2d" or "3d"
+    # --- boundary/junction criteria ---
+    tol_equal=0.1,           # "one band" for equality and dominance gap
+    tol_res = 0.1,
+    ref_pos_list=None,       # list of lists of reference coords: len == K or any; each inner list can be empty
+    anomalies_dict=None,     # {(x,y): cluster_label_or_tag, ...}
+    title="cNMF weights (projected)",
+    ellipse_alpha=0.25,
+    xlim=None, ylim=None, zlim=None, normalize=True
+):
+    """
+    Plot cNMF weights in a chosen 2D/3D component subspace, show:
+      - boundary points: near-equal contributions among the selected components
+      - the 'simplex' constraint (sum of chosen comps = 1) line/plane
+      - cluster coloring (optional)
+      - reference positions (by loc), one set per component group if provided
+      - anomalies (by loc)
+
+    Generalized boundary definition:
+        For the selected m components (m=2 or 3) with values w_i, define:
+            mean = (w_1 + ... + w_m) / m
+            boundary_metric = ||w - mean||_2 / sqrt(m)
+        This equals |w1 - w2| / sqrt(2) when m=2, and measures distance to the
+        equal-contribution subspace (w1 = w2 = ... = w_m).
+        Points with boundary_metric < equal_band_d are considered boundary points.
+
+    Args:
+        weights (np.ndarray): (N, K) cNMF weights (usually nonnegative, often sum to 1).
+        loc (np.ndarray): (N, 2) sample coordinates (used to find indices for ref/anomaly).
+        cluster_labels (np.ndarray or None): (N,), optional cluster id per sample.
+        comps (tuple[int]): component indices to project. Length must be 2 (2D) or 3 (3D).
+        mode (str): "2d" or "3d" projection.
+        equal_band_d (float): thickness threshold for the boundary band in the selected subspace.
+        ref_pos_list (list[list[tuple]] or None):
+            Example for K components: [ref_for_comp0, ref_for_comp1, ..., ref_for_compK-1],
+            where each ref_for_compX is a list of (x,y) tuples.
+            Only the references that fall into the selected `comps` are drawn, with distinct markers.
+        anomalies_dict (dict or None): {(x,y): label} to mark special samples.
+        title (str): plot title.
+        ellipse_alpha (float): transparency for 2D confidence ellipses per cluster.
+        xlim, ylim, zlim: axis limits (optional).
+
+    Returns:
+        out (dict):
+            {
+              "mask_boundary": (N,) bool array marking boundary points in selected subspace,
+              "proj": (N,m) projected weights,
+              "boundary_points": projected coords of boundary points,
+              "boundary_indices": indices of boundary points,
+              "regression_2d": {"slope": float, "intercept": float} or None,
+            }
+    """
+    weights = np.asarray(weights, dtype=float)
+    loc = np.asarray(loc)
+    N, K = weights.shape
+    comps = tuple(comps)
+    assert len(comps) in (2, 3), "comps must have length 2 (2D) or 3 (3D)."
+    assert all(0 <= c < K for c in comps), "comps indices out of range."
+    assert loc.shape[0] == N, "loc and weights must have same number of rows."
+
+    m = len(comps)
+
+    # ---- Normalize per row so sum=1 (robust to zero rows) ----
+    if normalize:
+        sums = weights.sum(axis=1, keepdims=True)
+        sums[sums == 0.0] = 1.0
+        Wnorm = weights / sums  # (N, K)
+        row_sums = Wnorm.sum(axis=1)
+        print("Row sums (min, max, mean):", row_sums.min(), row_sums.max(), row_sums.mean())
+    else:
+        Wnorm = weights
+        
+    Wplot = Wnorm[:, comps]  # use normalized weights for display
+    # ---------- boundary mask (TOP-2 rule you described) ----------
+    if K == 2:
+        # Only two comps: near-equal is the criterion; "others" are vacuous.
+        mask_boundary = (np.abs(Wnorm[:, 0] - Wnorm[:, 1]) <= float(tol_equal))
+    else:
+        # K >= 3
+        # Find indices of the top-2 weights per row (order of rows is preserved)
+        top2_idx = np.argpartition(Wnorm, -2, axis=1)[:, -2:]            # (N,2) (unordered pair)
+        # Retrieve the top-2 values
+        row_idx = np.arange(N)[:, None]
+        top2_vals = Wnorm[row_idx, top2_idx]                              # (N,2)
+        # Sort the two so that v1 >= v2 (only within the pair; rows not re-ordered)
+        v_sorted = np.sort(top2_vals, axis=1)[:, ::-1]                    # (N,2) -> [v1>=v2]
+        v1 = v_sorted[:, 0]
+        v2 = v_sorted[:, 1]
+
+        # Near-equal requirement for the TOP-2 pair
+        near_equal = np.abs(v1 - v2) <= float(tol_equal)                  # (N,)
+
+        # Compute max of "others" (all components except those two indices)
+        others_mask = np.ones((N, K), dtype=bool)
+        # both index arrays have shape (N, 1) and (N, 2) -> broadcasts to (N, 2) correctly
+        others_mask[np.arange(N)[:, None], top2_idx] = False
+
+        others_vals = np.where(others_mask, Wnorm, -np.inf)
+        others_max = np.max(others_vals, axis=1)                          # (N,)
+        assert not np.isneginf(others_max).any(), "others_max has -inf; check masking."
+
+        # Dominance requirement: others must be below mean(top2) by at least tol_res
+        mean_top2 = 0.5 * (v1 + v2)
+        others_ok = others_max <= (mean_top2 - float(tol_res))            # (N,)
+        # Final boundary mask
+        mask_boundary = near_equal & others_ok
+
+
+
+    # Helper: fetch reference coords array (M,2) for component index
+    def _get_ref_coords_for_comp(comp_idx):
+        if ref_pos_list is None:
+            return None
+        arr = None
+        if isinstance(ref_pos_list, dict):
+            arr = ref_pos_list.get(comp_idx, None)
+        else:  # list-like
+            if comp_idx < len(ref_pos_list):
+                arr = ref_pos_list[comp_idx]
+        if arr is None:
+            return None
+        arr = np.asarray(arr)
+        if arr.ndim != 2 or arr.shape[1] != 2 or arr.size == 0:
+            return None
+        # match dtype with loc for exact equality checks
+        if np.issubdtype(loc.dtype, np.integer):
+            arr = arr.astype(int, copy=False)
+        return arr
+    # Helper: map a set of (x,y) coords to indices in `loc`
+    def _coords_to_indices(coords_2d):
+        idxs = []
+        for pos in coords_2d:
+            ix = np.where((loc == pos).all(axis=1))[0]
+            if ix.size > 0:
+                idxs.append(ix[0])
+        if not idxs:
+            return None
+        return np.asarray(idxs, dtype=int)
+    # ----- colors per cluster -----
+    if cluster_labels is None:
+        cluster_labels = np.zeros(N, dtype=int)
+    cluster_labels = np.asarray(cluster_labels)
+    uniq = np.unique(cluster_labels)
+    num_clusters = len(uniq)
+    palette = [cm.get_cmap(name)(0.65) for name in
+               ['Blues','Greens','Reds','Purples','Oranges','YlOrBr',
+                'BuGn','PuRd','Greys','PuBu','YlGn','GnBu']][:num_clusters]
+    color_map = {lab: palette[i % len(palette)] for i, lab in enumerate(uniq)}
+
+    # ----- figure -----
+    if mode.lower() == "2d":
+        fig, ax = plt.subplots(figsize=(10, 7))
+        # main scatter by cluster
+        for lab in uniq:
+            msk = (cluster_labels == lab) & (~mask_boundary)
+            ax.scatter(Wplot[msk, 0], Wplot[msk, 1],
+                       s=30, alpha=0.75, edgecolors='k', linewidths=0.5,
+                       c=[color_map[lab]], label=f"Cluster {lab}")
+            # confidence ellipse on the whole cluster (optional)
+            _add_confidence_ellipse(ax, Wplot[cluster_labels == lab, :2], color_map[lab], alpha=ellipse_alpha)
+
+        # boundary points (highlight)
+        if np.any(mask_boundary):
+            # Union (small + marker)
+            ax.scatter(Wplot[mask_boundary, 0], Wplot[mask_boundary, 1],
+                       s=35, marker="x", c="k", linewidths=1.1, alpha=0.9,
+                       label="Boundary (union)")
+            
+
+        # --- simplex edge and regression line ---
+        xmin = 0.0 if xlim is None else xlim[0]
+        xmax = 1.0 if xlim is None else xlim[1]
+        ymin = 0.0 if ylim is None else ylim[0]
+        ymax = 1.0 if ylim is None else ylim[1]
+
+        x_line = np.linspace(xmin, xmax, 400)
+
+        # Simplex edge: X + Y = 1  ->  Y = 1 - X
+        y_simplex = 1.0 - x_line
+        ax.plot(x_line, y_simplex, 'r-', lw=1.6, alpha=0.9, label="X+Y=1")
+
+        # Regression (Y ~ X) using the projected points
+        reg = LinearRegression().fit(Wplot[:, [0]], Wplot[:, 1])
+        y_reg = reg.predict(x_line.reshape(-1, 1))
+        ax.plot(x_line, y_reg, 'b--', lw=1.4, alpha=0.8, label="Linear fit")
+
+        # (Optional) keep limits if provided
+        if xlim: ax.set_xlim(*xlim)
+        if ylim: ax.set_ylim(*ylim)
+                
+
+         # references for the selected comps only
+        ref_markers = ['*', 'P', 'X', 'D', '^', 's']
+        for j, comp_idx in enumerate(comps):
+            coords = _get_ref_coords_for_comp(comp_idx)
+            if coords is None:
+                continue
+            idxs = _coords_to_indices(coords)
+            if idxs is None:
+                continue
+            ax.scatter(Wplot[idxs, 0], Wplot[idxs, 1],
+                       s=200, marker=ref_markers[j % len(ref_markers)],
+                       facecolor='yellow', edgecolor='k', linewidth=1.2,
+                       label=f"Ref (comp {comp_idx})", zorder=10)
+
+
+        # anomalies
+        if anomalies_dict:
+            # group by anomaly label
+            an_xy = list(anomalies_dict.items())  # [((x,y), lbl), ...]
+            a_idx = []
+            a_lab = []
+            for (xy, lab) in an_xy:
+                ix = np.where((loc == xy).all(axis=1))[0]
+                if ix.size > 0:
+                    a_idx.append(ix[0])
+                    a_lab.append(lab)
+            if a_idx:
+                a_idx = np.asarray(a_idx, int); a_lab = np.asarray(a_lab, object)
+                for lab in np.unique(a_lab):
+                    msk = (a_lab == lab)
+                    ax.scatter(Wplot[a_idx[msk], 0], Wplot[a_idx[msk], 1],
+                               marker='^', s=70, facecolor='none', edgecolor='black',
+                               linewidth=1.2, label=f"Anomaly: {lab}", zorder=9)
+
+        ax.set_xlabel(f"Weight[{comps[0]}]")
+        ax.set_ylabel(f"Weight[{comps[1]}]")
+        ax.set_title(title)
+        if xlim: ax.set_xlim(*xlim)
+        if ylim: ax.set_ylim(*ylim)
+        ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+        plt.tight_layout()
+        plt.show()
+
+        # return 2D regression stats
+        slope = float(reg.coef_[0]); intercept = float(reg.intercept_)
+        reg_info = {"slope": slope, "intercept": intercept}
+
+    elif mode.lower() == "3d":
+        assert len(comps) == 3, "For 3D mode, comps must have length 3."
+        fig = plt.figure(figsize=(10, 7))
+        ax = fig.add_subplot(111, projection='3d')
+
+        for lab in uniq:
+            msk = (cluster_labels == lab) & (~mask_boundary)
+            if np.any(msk):
+                ax.scatter(Wplot[msk, 0], Wplot[msk, 1], Wplot[msk, 2],
+                           s=20, alpha=0.8, c=[color_map[lab]], label=f"Cluster {lab}")
+
+        if np.any(mask_boundary):
+            ax.scatter(Wplot[mask_boundary, 0], Wplot[mask_boundary, 1], Wplot[mask_boundary, 2],
+                       s=30, marker="x", c="k", alpha=0.9, label="Boundary (union)")
+           
+        # simplex plane: w_i + w_j + w_k = 1
+        g = np.linspace(0, 1, 30)
+        X, Y = np.meshgrid(g, g)
+        Z = 1.0 - X - Y
+        Zmask = Z >= 0
+        Xp = np.where(Zmask, X, np.nan)
+        Yp = np.where(Zmask, Y, np.nan)
+        Zp = np.where(Zmask, Z, np.nan)
+        ax.plot_surface(Xp, Yp, Zp, color='r', alpha=0.15, linewidth=0, antialiased=False)
+
+        # references
+        ref_markers = ['*', 'P', 'X', 'D', '^', 's']
+        for j, comp_idx in enumerate(comps):
+            coords = _get_ref_coords_for_comp(comp_idx)
+            if coords is None:
+                continue
+            idxs = _coords_to_indices(coords)
+            if idxs is None:
+                continue
+            ax.scatter(Wplot[idxs, 0], Wplot[idxs, 1], Wplot[idxs, 2],
+                       s=120, marker=ref_markers[j % len(ref_markers)],
+                       facecolor='yellow', edgecolor='k', linewidth=1.1,
+                       label=f"Ref (comp {comp_idx})", zorder=10)
+
+        # anomalies
+        if anomalies_dict:
+            an_xy = list(anomalies_dict.items())
+            a_idx = []
+            a_lab = []
+            for (xy, lab) in an_xy:
+                ix = np.where((loc == xy).all(axis=1))[0]
+                if ix.size > 0:
+                    a_idx.append(ix[0]); a_lab.append(lab)
+            if a_idx:
+                a_idx = np.asarray(a_idx, int); a_lab = np.asarray(a_lab, object)
+                for lab in np.unique(a_lab):
+                    msk = (a_lab == lab)
+                    ax.scatter(Wplot[a_idx[msk], 0], Wplot[a_idx[msk], 1], Wplot[a_idx[msk], 2],
+                               marker='^', s=60, facecolor='none', edgecolor='black',
+                               linewidth=1.2, label=f"Anomaly: {lab}", zorder=9)
+
+        ax.set_xlabel(f"Weight[{comps[0]}]")
+        ax.set_ylabel(f"Weight[{comps[1]}]")
+        ax.set_zlabel(f"Weight[{comps[2]}]")
+        ax.set_title(title)
+        if xlim: ax.set_xlim(*xlim)
+        if ylim: ax.set_ylim(*ylim)
+        if zlim: ax.set_zlim(*zlim)
+        ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+        plt.tight_layout()
+        plt.show()
+        reg_info = None
+    else:
+        raise ValueError("mode must be '2d' or '3d'.")
+
+    out = {
+        "mask_boundary": mask_boundary,
+        "proj": Wplot,
+        "boundary_points": Wplot[mask_boundary],
+        "boundary_indices": np.where(mask_boundary)[0],
+        "boundary_dict": {                             # NEW: map real (x,y) → cluster label
+            tuple(loc[i]): int(cluster_labels[i])
+            for i in np.where(mask_boundary)[0]
+        },
+        "regression_2d": reg_info if mode.lower() == "2d" else None,
+    }
+    return out
+
+
 
 def plot_gmm_clusters(scores, cluster_labels, optimal_n, variations, dim=2, anomalies=None, reference_windows=None, title_prefix="GMM Clustering", ellipse_alpha=0.3):
     """
