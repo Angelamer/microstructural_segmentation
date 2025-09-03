@@ -418,7 +418,41 @@ def get_eds_average(pos_X, pos_Y, edax, type= 'component'):
                 print(f"Warning: {element} data not found in EDS metadata!")
                 point_data.append(None)
         return point_data
+
+def get_region_element_averages(df_element, x_range, y_range, x_str ='x', y_str = 'y'):
+    """
+    Extract element data from a specific region and calculate normalized averages.
+    
+    Args:
+        df_element: DataFrame with columns including 'x', 'y', and element percentages
+        x_range: Tuple (x_min, x_max) for region selection
+        y_range: Tuple (y_min, y_max) for region selection
         
+    Returns:
+        numpy.array: Normalized average element percentages for the region
+    """
+    # Filter dataframe for the specified region
+    x_min, x_max = x_range
+    y_min, y_max = y_range
+    
+    region_df = df_element[
+        (df_element[x_str] >= x_min) & 
+        (df_element[x_str] < x_max) & 
+        (df_element[y_str] >= y_min) & 
+        (df_element[y_str] < y_max)
+    ]
+    
+    # Extract element columns (assuming all columns except x and y are elements)
+    element_columns = [col for col in df_element.columns if col not in [x_str, y_str]]
+    element_data = region_df[element_columns].values
+    
+    # Calculate average for each element
+    element_avg = np.mean(element_data, axis=0)
+    
+    # Normalize to sum=1
+    element_avg_normalized = element_avg / np.sum(element_avg)
+    
+    return element_avg_normalized       
 
 
 def add_gaussian_noise_to_kikuchi_patterns(image_paths, noise_std=25, output_folder=None, auto_detect_circle=True):

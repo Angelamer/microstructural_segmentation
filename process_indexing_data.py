@@ -14,7 +14,7 @@ from matplotlib.colors import ListedColormap, to_hex, to_rgba
 from matplotlib.patches import Rectangle, Patch
 from matplotlib.cm import get_cmap, ScalarMappable
 from matplotlib.lines import Line2D
-
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
 
 def compute_roi_misorientation_map_from_xmap(
@@ -573,157 +573,206 @@ def analyze_quaternion_scores_relationship(quats, scores, n_components=3):
         'transformed_y': Y_c
     }
 
-def plot_phase_heatmap(coor_dict, boundary_loc_label_dict=None,
-    anomalies_loc_label_dict=None,
-    coor_phase_map=None,
-    boundary_loc_label_map=None,
-    anomalies_loc_label_map=None, image_size=(31, 31)):
+def plot_phase_heatmap(
+    coor_dict,                         # {(x,y): phase_id}
+    boundary_loc_label_dict=None,      # {(x,y): cluster_id or label_id}
+    anomalies_loc_label_dict=None,     # {(x,y): cluster_id or label_id}
+    coor_phase_map=None,               # {phase_id: phase_name}
+    boundary_loc_label_map=None,       # {label_id: phase_name} (optional)
+    anomalies_loc_label_map=None,      # {label_id: phase_name} (optional)
+    image_size=(31, 31),
+    roi_xrange=None,                   # (xmin, xmax) half-open [xmin, xmax)
+    roi_yrange=None,                   # (ymin, ymax) half-open [ymin, ymax)
+    cluster_name_map=None              # {label_id: phase_name} — if given, overrides boundary_loc_label_map
+):
     """
-    Plot a phase index heatmap from coordinate-phase dictionary, and highlight boundary and anomaly points.
-    
-    Args:
-        coor_dict (dict): mapping (x, y) -> phase_index for each of the 31x31 samples.
-        boundary_loc_label_dict (dict, optional): {(x, y): label_idx, ...}
-        anomalies_loc_label_dict (dict, optional): {(x, y): label_idx, ...}
-        coor_phase_map (dict): {label_idx: phase_name, ...}
-        boundary_loc_label_map (dict): {label_idx: phase_name, ...}
-        anomalies_loc_label_map (dict): {label_idx: phase_name, ...}
-        image_size (tuple): (n_rows, n_cols) for the ROI grid, default (31,31).
+    Draw a phase heatmap from (x,y)->phase_id and overlay boundary/anomaly boxes.
+    IMPORTANT: overlays compare by *phase name* — overlay boxes are colored using the
+    same color as that phase name (if present in the phase map); otherwise a fallback.
     """
+
     n_rows, n_cols = image_size
 
-    # phase_map
-    phase_map = np.full((n_rows, n_cols), fill_value=-1, dtype=int)
-    all_coords = np.array(list(coor_dict.keys()))
-    min_x, min_y = np.min(all_coords, axis=0)
-    max_x, max_y = np.max(all_coords, axis=0)
-    scale_x = (n_cols - 1) / (max_x - min_x) if max_x != min_x else 1
-    scale_y = (n_rows - 1) / (max_y - min_y) if max_y != min_y else 1
+    # ---- 1) ROI filter (half-open ranges) ----
+    def in_roi(x, y):
+        okx = True if roi_xrange is None else (roi_xrange[0] <= x < roi_xrange[1])
+        oky = True if roi_yrange is None else (roi_yrange[0] <= y < roi_yrange[1])
+        return okx and oky
 
-    # Map coordinates to grid
-    coord_to_grid = {}
-    for (x, y), phase in coor_dict.items():
-        grid_x = int(round((x - min_x) * scale_x))
-        grid_y = int(round((y - min_y) * scale_y))
-        if 0 <= grid_x < n_cols and 0 <= grid_y < n_rows:
-            phase_map[grid_y, grid_x] = phase
-            coord_to_grid[(x, y)] = (grid_x, grid_y)
+    coor_dict = { (x, y): pid for (x, y), pid in coor_dict.items() if in_roi(x, y) }
+    if boundary_loc_label_dict is not None:
+        boundary_loc_label_dict = { (x, y): lab for (x, y), lab in boundary_loc_label_dict.items() if in_roi(x, y) }
+    if anomalies_loc_label_dict is not None:
+        anomalies_loc_label_dict = { (x, y): lab for (x, y), lab in anomalies_loc_label_dict.items() if in_roi(x, y) }
 
-    # All phase names
-    all_phase_names = set()
-    def _collect_phases(dict_, phase_map_):
-        if dict_ and phase_map_:
-            for idx in set(dict_.values()):
-                all_phase_names.add(phase_map_.get(idx, f"Phase {idx}"))
-    if coor_phase_map:
-        for idx in set(coor_dict.values()):
-            all_phase_names.add(coor_phase_map.get(idx, f"Phase {idx}"))
-    else:
-        for idx in set(coor_dict.values()):
-            all_phase_names.add(f"Phase {idx}")
-    _collect_phases(boundary_loc_label_dict, boundary_loc_label_map)
-    _collect_phases(anomalies_loc_label_dict, anomalies_loc_label_map)
-    all_phase_names = sorted(list(all_phase_names))
-    n_phases = len(all_phase_names)
+    if not coor_dict and not boundary_loc_label_dict and not anomalies_loc_label_dict:
+        print("[warn] No points inside ROI to plot.")
+        return
 
-    # Set the color
-    if n_phases == 2:
-        color_list = ['#2196F3', '#E53935']  # 蓝/红
-    elif n_phases == 3:
-        color_list = ['#2196F3', '#E53935', '#43A047']  # 蓝/红/绿
-    else:
-        base_cmap = plt.cm.get_cmap('tab20', n_phases)
-        color_list = [to_hex(base_cmap(i)) for i in range(n_phases)]
-    phase_color_dict = {p: color_list[i % len(color_list)] for i, p in enumerate(all_phase_names)}
+    # ---- 2) Coordinate → grid mapping ----
+    # Collect all coordinates (including boundary and anomaly points)
+    all_coords = list(coor_dict.keys())
+    if boundary_loc_label_dict:
+        all_coords.extend(boundary_loc_label_dict.keys())
+    if anomalies_loc_label_dict:
+        all_coords.extend(anomalies_loc_label_dict.keys())
+    
+    all_xy = np.array(all_coords, dtype=float)
+    min_x, min_y = np.min(all_xy, axis=0)
+    max_x, max_y = np.max(all_xy, axis=0)
+    sx = (n_cols - 1) / (max_x - min_x) if max_x > min_x else 1.0
+    sy = (n_rows - 1) / (max_y - min_y) if max_y > min_y else 1.0
 
-    # 4. phase index -> phase name -> colormap index
-    def _get_phase_idx(idx):
+    def to_grid(x, y):
+        gx = int(round((x - min_x) * sx))
+        gy = int(round((y - min_y) * sy))
+        gx = max(0, min(n_cols - 1, gx))
+        gy = max(0, min(n_rows - 1, gy))
+        return gx, gy  # (col, row)
+
+    # ---- 3) Phase names present in data ----
+    def pid_to_name(pid):
         if coor_phase_map is not None:
-            phase = coor_phase_map.get(idx, f"Phase {idx}")
+            return coor_phase_map.get(pid, f"Phase {pid}")
+        return f"Phase {pid}"
+
+    phase_ids_present = sorted(set(coor_dict.values())) if coor_dict else []
+    phase_names_present = [pid_to_name(pid) for pid in phase_ids_present]
+
+    # Also include any names appearing in boundary/anomaly label maps (to color match by name)
+    def _collect_label_names(label_dict, label_map):
+        names = set()
+        if label_dict is not None:
+            for lab in set(label_dict.values()):
+                if label_map is not None:
+                    names.add(label_map.get(lab, str(lab)))
+                else:
+                    names.add(str(lab))
+        return names
+
+    # Allow cluster_name_map to override boundary map (per your note)
+    boundary_name_map = cluster_name_map if cluster_name_map is not None else boundary_loc_label_map
+    anomaly_name_map  = anomalies_loc_label_map
+
+    extra_names = set()
+    extra_names |= _collect_label_names(boundary_loc_label_dict, boundary_name_map)
+    extra_names |= _collect_label_names(anomalies_loc_label_dict, anomaly_name_map)
+
+    # Build master list of phase names used for the colormap
+    all_phase_names = list(phase_names_present)  # keep order of phases in coor_dict first
+    for nm in sorted(extra_names):
+        if nm not in all_phase_names:
+            all_phase_names.append(nm)
+
+    # ---- 4) Colors (match 'not_indexed' / -1 to white if present) ----
+    base_cmap = plt.cm.get_cmap('tab20', max(1, len(all_phase_names)))
+    color_list = [to_hex(base_cmap(i)) for i in range(len(all_phase_names))]
+
+    # Force not_indexed to white if present by name (or by pid=-1 already included)
+    try:
+        idx_not = all_phase_names.index("not_indexed")
+        color_list[idx_not] = "#FFFFFF"
+    except ValueError:
+        pass  # not present
+
+    # Slight transparency for non-white
+    rgba_colors = []
+    for c in color_list:
+        if c.upper() == "#FFFFFF":
+            rgba_colors.append(to_rgba(c, 1.0))
         else:
-            phase = f"Phase {idx}"
-        return all_phase_names.index(phase)
-    phase_idx_map = np.vectorize(_get_phase_idx)
-    plot_map = np.full_like(phase_map, fill_value=-1)
-    mask = (phase_map >= 0)
-    plot_map[mask] = phase_idx_map(phase_map[mask])
-    
-    phase_alpha = 0.25
-    phase_colors_rgba = [to_rgba(phase_color_dict[p], alpha=phase_alpha) for p in all_phase_names]
-    cmap = ListedColormap(phase_colors_rgba)
-    
+            rgba_colors.append(to_rgba(c, 0.25))
+    cmap = ListedColormap(rgba_colors)
+    name_to_idx = {name: i for i, name in enumerate(all_phase_names)}
+    name_to_facecolor = {name: color_list[i] for i, name in enumerate(all_phase_names)}
+
+    # ---- 5) Build the phase index grid ----
+    grid = np.full((n_rows, n_cols), np.nan, dtype=float)  # NaN=transparent
+    coord_to_grid = {}
+    for (x, y), pid in coor_dict.items():
+        pname = pid_to_name(pid)
+        pidx  = name_to_idx[pname]
+        gx, gy = to_grid(x, y)
+        grid[gy, gx] = float(pidx)
+        coord_to_grid[(x, y)] = (gx, gy)
+
+    cmap = cmap.copy()
+    cmap.set_bad((0, 0, 0, 0))  # transparent for empty grid cells
+
+    # ---- 6) Plot base heatmap ----
     fig, ax = plt.subplots(figsize=(10, 8))
-    im = ax.imshow(plot_map, cmap=cmap, origin='upper', vmin=0, vmax=n_phases-1)
-    ax.set_title('Phase Map with Anomaly and Boundary')
+    im = ax.imshow(grid, cmap=cmap, origin='upper', vmin=0, vmax=len(all_phase_names)-1)
+    ax.set_title("Phase Map with Boundary/Anomaly Overlays (compare by phase name)")
     ax.set_xticks([]); ax.set_yticks([])
 
-
-    def _add_boxes_label_dict(label_dict, label_map, hatch, lw=2, alpha=1.0, zorder=2):
-        if not (label_dict and label_map): return
-        for (x, y), label in label_dict.items():
-            phase = label_map.get(label, f"Phase {label}") if label_map else f"Phase {label}"
-            color = phase_color_dict.get(phase, 'black')
-            grid_coord = coord_to_grid.get((x, y))
-            if grid_coord is None: continue
-            grid_x, grid_y = grid_coord
+    # ---- 7) Overlay helpers (compare by phase name) ----
+    def _draw_boxes(label_dict, label_map, hatch, lw=2, alpha=1.0, zorder=3):
+        """
+        label_dict: {(x,y): label_id}
+        label_map: {label_id: phase_name}  (or None -> str(label_id))
+        We color the box edge using the SAME color as that phase name if the name exists
+        in all_phase_names; otherwise we fall back to black.
+        """
+        if not label_dict:
+            return
+        for (x, y), lab in label_dict.items():
+            # Calculate grid coordinates for this point
+            gx, gy = to_grid(x, y)
+            
+            # map label_id -> name
+            if label_map is not None:
+                lname = label_map.get(lab, str(lab))
+            else:
+                lname = str(lab)
+            edge_col = name_to_facecolor.get(lname, 'black')  # match by phase name
             rect = Rectangle(
-                (grid_x - 0.5, grid_y - 0.5), 1, 1,
-                linewidth=lw, edgecolor=color, facecolor='none',
+                (gx - 0.5, gy - 0.5), 1, 1,
+                linewidth=lw, edgecolor=edge_col, facecolor='none',
                 hatch=hatch, alpha=alpha, linestyle='-', zorder=zorder
             )
             ax.add_patch(rect)
 
-    # Overlapping
-    boundary_set = set(boundary_loc_label_dict) if boundary_loc_label_dict else set()
-    anomaly_set = set(anomalies_loc_label_dict) if anomalies_loc_label_dict else set()
-    overlap_set = boundary_set & anomaly_set
+    # Overlap handling (draw both hatches on the same cell)
+    b_set = set(boundary_loc_label_dict) if boundary_loc_label_dict else set()
+    a_set = set(anomalies_loc_label_dict) if anomalies_loc_label_dict else set()
+    overlap = b_set & a_set
 
-    if boundary_loc_label_dict and boundary_loc_label_map:
-        only_boundary = {k: v for k, v in boundary_loc_label_dict.items() if k not in overlap_set}
-        _add_boxes_label_dict(only_boundary, boundary_loc_label_map, hatch='////', lw=2, alpha=1, zorder=3)
-    if anomalies_loc_label_dict and anomalies_loc_label_map:
-        only_anomaly = {k: v for k, v in anomalies_loc_label_dict.items() if k not in overlap_set}
-        _add_boxes_label_dict(only_anomaly, anomalies_loc_label_map, hatch='xxx', lw=2, alpha=1, zorder=4)
-    
-    
-    for k in overlap_set:
-        label_b = boundary_loc_label_dict[k]
-        label_a = anomalies_loc_label_dict[k]
-        _add_boxes_label_dict({k: label_b}, boundary_loc_label_map, hatch='////', lw=2, alpha=1, zorder=5)
-        _add_boxes_label_dict({k: label_a}, anomalies_loc_label_map, hatch='xxx', lw=2, alpha=1, zorder=6)
+    if boundary_loc_label_dict:
+        only_b = {k: v for k, v in boundary_loc_label_dict.items() if k not in overlap}
+        _draw_boxes(only_b, boundary_name_map, hatch='////', lw=2, alpha=1.0, zorder=4)
 
-    # legend：classify phase、anomaly/boundary and hatch
-    legend_elements = []
-    for phase in all_phase_names:
-        legend_elements.append(
-            Line2D([0], [0], marker='s', color='w', markerfacecolor=phase_color_dict[phase],
-                markersize=12, label=f"{phase}")
+    if anomalies_loc_label_dict:
+        only_a = {k: v for k, v in anomalies_loc_label_dict.items() if k not in overlap}
+        _draw_boxes(only_a, anomalies_loc_label_map, hatch='xxx', lw=2, alpha=1.0, zorder=5)
+
+    for k in overlap:
+        _draw_boxes({k: boundary_loc_label_dict[k]}, boundary_name_map,       hatch='////', lw=2, alpha=1.0, zorder=6)
+        _draw_boxes({k: anomalies_loc_label_dict[k]}, anomalies_loc_label_map, hatch='xxx',  lw=2, alpha=1.0, zorder=7)
+
+    # ---- 8) Legend (phase colors + hatch meaning) ----
+    legend_elems = []
+    for name in all_phase_names:
+        legend_elems.append(
+            Line2D([0], [0], marker='s', color='w',
+                   markerfacecolor=name_to_facecolor[name], markersize=12, label=name)
         )
-    legend_elements.append(
-        Line2D([0], [0], marker='s', color='k', markerfacecolor='none',
-            markersize=12, label='Boundary (hatch=////)', linewidth=2)
-    )
-    legend_elements.append(
-        Line2D([0], [0], marker='s', color='k', markerfacecolor='none',
-            markersize=12, label='Anomaly (hatch=xxx)', linewidth=2)
-    )
-    if overlap_set:
-        legend_elements.append(
-            Line2D([0], [0], marker='s', color='k', markerfacecolor='none',
-                markersize=12, label='Overlap (//// + xxx)', linewidth=2)
-        )
+    legend_elems.append(Line2D([0], [0], marker='s', color='k', markerfacecolor='none',
+                               markersize=12, label='Boundary (////)', linewidth=2))
+    legend_elems.append(Line2D([0], [0], marker='s', color='k', markerfacecolor='none',
+                               markersize=12, label='Anomaly (xxx)', linewidth=2))
+    if overlap:
+        legend_elems.append(Line2D([0], [0], marker='s', color='k', markerfacecolor='none',
+                                   markersize=12, label='Overlap (//// + xxx)', linewidth=2))
 
-    seen = set()
-    legend_unique = []
-    for h in legend_elements:
+    # de-duplicate legend entries
+    seen, uniq = set(), []
+    for h in legend_elems:
         if h.get_label() not in seen:
-            legend_unique.append(h)
-            seen.add(h.get_label())
-    ax.legend(handles=legend_unique, loc='upper left', bbox_to_anchor=(1.05, 1), fontsize=10)
+            uniq.append(h); seen.add(h.get_label())
+    ax.legend(handles=uniq, loc='upper left', bbox_to_anchor=(1.05, 1), fontsize=10)
+
     plt.tight_layout()
     plt.show()
-    
-    
     
 
 def plot_element_vs_pca(pca_scores, element_df, loc, coord_dict, phase_map, figsize=(10, 6)):
@@ -809,3 +858,229 @@ def plot_element_vs_pca(pca_scores, element_df, loc, coord_dict, phase_map, figs
     plt.tight_layout()
     plt.show()
     
+    
+    
+def plot_kam_with_learning_boundary(
+    df,
+    gb_col: str,                                   # e.g. "GB_0.1" / "GB_2" / "GB_5" / ...
+    roi_xrange: tuple,                              # (xmin, xmax) in same units as df[x_col]
+    roi_yrange: tuple,                              # (ymin, ymax)
+    boundary_loc_label_dict=None,                   # {(x,y): label_idx, ...}
+    anomalies_loc_label_dict=None,                  # {(x,y): label_idx, ...}
+    boundary_loc_label_map=None,                    # {label_idx: "name"} (optional)
+    anomalies_loc_label_map=None,                   # {label_idx: "name"} (optional)
+    figsize=(12, 9),
+    kam_col="KAM",
+    x_col="x",
+    y_col="y",
+    cmap_colors=("#fff5f5","#ff9b9b","#b21a1a"),    # low → mid → high (compatible with your palette)
+    kam_vmax_percentile=95,                         # robust upper color cap
+    contour_kwargs=None                             # e.g. dict(colors="black", linewidths=1.0)
+):
+    """
+    Plot a KAM heatmap for a *region of interest* and overlay:
+      • one GB column (boolean) as a contour,
+      • boundary markers,
+      • anomaly markers.
+
+    Notes
+    -----
+    - Uses the same color solution as `plot_kam_with_overlays`:
+      KAM warm colormap, and GB/boundary colors/linestyles.
+    - ROI is specified in the coordinate units of df[x_col]/df[y_col].
+    - Works for integer-indexed grids or irregular (float) grids by mapping
+      unique values inside the ROI to a tight grid.
+    """
+    # ---------- styles synced with plot_kam_with_overlays ----------
+    default_styles = {
+        "phase_boundary":       dict(color="#111111", linestyle="-",  linewidth=1.2, alpha=0.12),
+        "points_on_the_border": dict(color="#6e6e6e", linestyle="--", linewidth=0.9, alpha=0.10),
+
+        "GB_0.1":               dict(color="#17becf", linestyle=":",  linewidth=1.0, alpha=0.10),  # teal dotted
+        "GB_0.2":               dict(color="#8c564b", linestyle="-.", linewidth=1.0, alpha=0.10),  # brown dash-dot
+        "GB_0.5":               dict(color="#e377c2", linestyle="--", linewidth=1.0, alpha=0.10),  # pink dashed
+
+        "GB_1":                 dict(color="#1f77b4", linestyle="-",  linewidth=1.0, alpha=0.10),  # blue solid
+        "GB_2":                 dict(color="#2ca02c", linestyle="--", linewidth=1.0, alpha=0.10),  # green dashed
+        "GB_5":                 dict(color="#d62728", linestyle="-.", linewidth=1.2, alpha=0.10),  # red dash-dot
+        "GB_10":                dict(color="#9467bd", linestyle=":",  linewidth=1.2, alpha=0.10),  # purple dotted
+    }
+    # If user gave contour kwargs, merge with the style for this GB if available
+    if contour_kwargs is None:
+        contour_kwargs = {}
+    gb_style = default_styles.get(gb_col, {})
+    # Fill defaults if not specified by caller
+    contour_kwargs = {
+        "colors": gb_style.get("color", contour_kwargs.get("colors", "black")),
+        "linestyles": gb_style.get("linestyle", contour_kwargs.get("linestyles", "-")),
+        "linewidths": gb_style.get("linewidth", contour_kwargs.get("linewidths", 1.0)),
+        **{k: v for k, v in contour_kwargs.items() if k not in {"colors","linestyles","linewidths"}}
+    }
+
+    # ---------- 1) Filter DF to ROI ----------
+    xmin, xmax = roi_xrange
+    ymin, ymax = roi_yrange
+    mask_roi = (
+        (df[x_col] >= xmin) & (df[x_col] < xmax) &
+        (df[y_col] >= ymin) & (df[y_col] < ymax)
+    )
+    dfr = df.loc[mask_roi].copy()
+    if dfr.empty:
+        print("[warn] No points fall inside the specified ROI.")
+        return
+
+    if kam_col not in dfr.columns:
+        raise ValueError(f"'{kam_col}' column not found in DataFrame.")
+    if gb_col not in dfr.columns:
+        raise ValueError(f"'{gb_col}' column not found in DataFrame.")
+
+    # ---------- 2) Pull arrays (ROI only) ----------
+    x = dfr[x_col].to_numpy()
+    y = dfr[y_col].to_numpy()
+    kam = dfr[kam_col].to_numpy().astype(float)
+    gb_vals = dfr[gb_col].to_numpy().astype(float)
+
+    # ---------- 3) Decide grid & mapping for ROI ----------
+    def _is_intlike(arr):
+        return np.allclose(arr, np.round(arr))
+
+    if _is_intlike(x) and _is_intlike(y):
+        # integer-indexed grid → tight min..max inclusive grid
+        gx_min, gx_max = int(np.min(x)), int(np.max(x))
+        gy_min, gy_max = int(np.min(y)), int(np.max(y))
+        n_cols = gx_max - gx_min + 1
+        n_rows = gy_max - gy_min + 1
+
+        def to_grid_ix(xv, yv):
+            gx = int(round(xv)) - gx_min
+            gy = int(round(yv)) - gy_min
+            return int(np.clip(gx, 0, n_cols - 1)), int(np.clip(gy, 0, n_rows - 1))
+    else:
+        # irregular coords → map via unique sorted values inside ROI
+        xs = np.unique(x)
+        ys = np.unique(y)
+        n_cols = len(xs)
+        n_rows = len(ys)
+        x_to_ix = {v: i for i, v in enumerate(xs)}
+        y_to_iy = {v: i for i, v in enumerate(ys)}
+        def to_grid_ix(xv, yv):
+            gx = x_to_ix.get(xv, int(np.argmin(np.abs(xs - xv))))
+            gy = y_to_iy.get(yv, int(np.argmin(np.abs(ys - yv))))
+            return int(gx), int(gy)
+
+    # ---------- 4) Build KAM/GB grids (ROI) ----------
+    kam_grid = np.full((n_rows, n_cols), np.nan, dtype=float)
+    gb_grid  = np.zeros((n_rows, n_cols), dtype=float)
+
+    for xv, yv, kv, gv in zip(x, y, kam, gb_vals):
+        gx, gy = to_grid_ix(xv, yv)
+        kam_grid[gy, gx] = kv
+        gb_grid[gy, gx]  = gv
+
+    # ---------- 5) KAM colormap/norm (same warmth as before) ----------
+    kam_cmap = LinearSegmentedColormap.from_list(
+        'kam', [
+            "#fff5f5",  # very pale pink
+            "#ffdada",  # soft warm pink
+            "#ffbcbc",  # light rose
+            "#ff9b9b",  # muted coral
+            "#ff7b7b",  # medium dusty red
+            "#ff5c5c",  # warm red
+            "#e64545",  # bright red
+            "#cc3030",  # deep red
+            "#b21a1a"   # dark warm red
+        ]
+    )
+
+    finite_kam = kam_grid[np.isfinite(kam_grid)]
+    if finite_kam.size:
+        vcenter = float(np.nanmedian(finite_kam))
+        vmax = float(np.nanpercentile(finite_kam, kam_vmax_percentile))
+        vmax = max(vmax, vcenter + 1e-8)
+    else:
+        vcenter, vmax = 0.0, 1.0
+    norm = TwoSlopeNorm(vmin=0.0, vcenter=vcenter, vmax=vmax)
+
+    # ---------- 6) Plot base KAM ----------
+    fig, ax = plt.subplots(figsize=figsize)
+    im = ax.imshow(
+        kam_grid, cmap=kam_cmap, norm=norm,
+        origin="upper", interpolation="nearest"
+    )
+    ax.set_title(
+        f"KAM map (ROI: {x_col}∈[{xmin},{xmax}], {y_col}∈[{ymin},{ymax}])  +  {gb_col} contour"
+    )
+    ax.set_xticks([]); ax.set_yticks([])
+
+    legend_handles = []
+
+    # ---------- 7) GB contour (boolean → level=0.5) ----------
+    if np.any(gb_grid > 0):
+        cs = ax.contour(gb_grid, levels=[0.5], **contour_kwargs)
+        legend_handles.append(Line2D(
+            [0],[0],
+            color=contour_kwargs.get("colors", "black"),
+            linestyle=contour_kwargs.get("linestyles", "-"),
+            linewidth=contour_kwargs.get("linewidths", 1.0),
+            label=gb_col
+        ))
+
+    # ---------- helper to draw cells at ROI grid coords ----------
+    def draw_cells(coords, color, lw=2, hatch=None, alpha=1.0, z=6, label=None):
+        if not coords:
+            return False
+        any_drawn = False
+        for (cx, cy) in coords:
+            # keep only points inside ROI (in original coordinate units)
+            if not (xmin <= cx < xmax and ymin <= cy < ymax):
+                continue
+            gx, gy = to_grid_ix(cx, cy)
+            rect = Rectangle((gx - 0.5, gy - 0.5), 1, 1,
+                             linewidth=lw, edgecolor=color, facecolor='none',
+                             hatch=hatch, alpha=alpha, zorder=z)
+            ax.add_patch(rect)
+            any_drawn = True
+        if any_drawn and label:
+            legend_handles.append(Line2D([0],[0], color=color, lw=2, label=label))
+        return any_drawn
+
+    # ---------- 8) Boundary markers ----------
+    if boundary_loc_label_dict:
+        b_items = [(k, v) for k, v in boundary_loc_label_dict.items()
+                   if xmin <= k[0] < xmax and ymin <= k[1] < ymax]
+        if b_items:
+            b_labels = np.array([v for _, v in b_items])
+            b_uniq = np.unique(b_labels)
+            b_cmap = plt.cm.get_cmap('tab20', len(b_uniq))
+            for i, lab in enumerate(b_uniq):
+                coords = [xy for (xy, L) in b_items if L == lab]
+                color = b_cmap(i)
+                lbl   = boundary_loc_label_map.get(lab, f"Boundary label {lab}") if boundary_loc_label_map else f"Boundary label {lab}"
+                draw_cells(coords, color=color, lw=2, hatch='////', alpha=0.95, z=7, label=lbl)
+
+    # ---------- 9) Anomaly markers ----------
+    if anomalies_loc_label_dict:
+        a_items = [(k, v) for k, v in anomalies_loc_label_dict.items()
+                   if xmin <= k[0] < xmax and ymin <= k[1] < ymax]
+        if a_items:
+            a_labels = np.array([v for _, v in a_items])
+            a_uniq = np.unique(a_labels)
+            a_cmap = plt.cm.get_cmap('tab10', len(a_uniq))
+            for i, lab in enumerate(a_uniq):
+                coords = [xy for (xy, L) in a_items if L == lab]
+                color = a_cmap(i)
+                lbl   = anomalies_loc_label_map.get(lab, f"Anomaly label {lab}") if anomalies_loc_label_map else f"Anomaly label {lab}"
+                draw_cells(coords, color=color, lw=2, hatch='xxx', alpha=0.95, z=8, label=lbl)
+
+    # ---------- 10) Colorbar + legend ----------
+    cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label('KAM (degrees)')
+    if legend_handles:
+        # de-duplicate legend labels
+        uniq = {}
+        for h in legend_handles:
+            uniq[h.get_label()] = h
+        ax.legend(handles=list(uniq.values()), loc="upper right", bbox_to_anchor=(1.05, 1),fontsize=9, frameon=True)
+
+    plt.tight_layout()
+    plt.show()
