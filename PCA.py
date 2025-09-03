@@ -144,7 +144,7 @@ def _plot_pca(pca_scores, coord_dict, loc_roi):
     plt.title("PCA of EBSD Kikuchi Patterns by Phase index")
     plt.show()
 """
-def _plot_reference(ref_pos, loc_roi, ax, pca_scores, marker, label):
+def _plot_reference(ref_pos, loc_roi, ax, pca_scores, marker, label, dim):
         if ref_pos is None or len(ref_pos) == 0:
             return
         
@@ -273,8 +273,8 @@ def _plot_pca(pca_scores, coord_dict, loc_roi, dim=2, ref1_pos=None, ref2_pos=No
             c=colors, alpha=0.7, edgecolors='k', label='Samples'
         )
     # mark the reference point
-    _plot_reference(ref1_pos, loc_roi, ax, pca_scores, '*', 'Reference 1')
-    _plot_reference(ref2_pos, loc_roi, ax, pca_scores, 'P', 'Reference 2')
+    _plot_reference(ref1_pos, loc_roi, ax, pca_scores, '*', 'Reference 1', dim=dim)
+    _plot_reference(ref2_pos, loc_roi, ax, pca_scores, 'P', 'Reference 2', dim=dim)
     
     
     # plot the confidence ellipse (only for 2D)

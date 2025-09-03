@@ -10,7 +10,7 @@ please follow installation instructions from there.
 Licensed under GNU GPL3, see license file LICENSE_GPL3.
 """
 
-from data_processing import signal_process, get_eds_average
+from data_processing import signal_process, get_eds_average, get_region_element_averages
 import torch
 import numpy as np
 import pandas as pd
@@ -91,6 +91,91 @@ def run_cNMF(ROI, components,height, width, slice_x, slice_y):
     bar.finish()
     weights = np.array(weights).squeeze(axis=1) 
     return weights,mse,r_square
+
+def run_cNMF_with_eds(ROI, components_combined, df_element, loc, height, width, slice_x, slice_y,
+                      *, x_str='x', y_str= 'y'):
+    """
+    Run constrained NMF on mixed EBSP and EDS data.
+    
+    Args:
+        ROI: List of file paths for EBSPs
+        components_combined: Number of components for NMF
+        df_element: DataFrame with element percentages and coordinates
+        loc: Array of coordinates corresponding to the ROI files
+        height: Pattern height for signal processing
+        width: Pattern width for signal processing
+        slice_x: Tuple (start, end) for x-axis slicing
+        slice_y: Tuple (start, end) for y-axis slicing
+        
+    Returns:
+        tuple: (weights, mse, r_square)
+    """
+    file_list = ROI
+    weights = []
+    mse = []
+    r_square = []
+    
+    bar = Bar("Processing", max=len(file_list))
+    H = torch.tensor(components_combined, dtype=torch.float)
+    
+    for i, file in enumerate(file_list):
+        bar.next()
+        
+        # Process EBSP signal
+        input_X = signal_process(
+            file, 
+            flag="ROI", 
+            pattern_height=height, 
+            pattern_width=width, 
+            slice_x=slice_x, 
+            slice_y=slice_y
+        )
+        
+        # Get element data for this location from the provided loc array
+        x_loc, y_loc = loc[i]
+        
+        # Find element data for this coordinate
+        element_row = df_element[
+            (df_element[x_str] == x_loc) & 
+            (df_element[y_str] == y_loc)
+        ]
+        
+        if len(element_row) == 0:
+            # If no exact match, use nearest neighbor or average
+            print(f"Warning: No element data found for ({x_loc}, {y_loc}). Using region average.")
+            eds_values = get_region_element_averages(
+                df_element, 
+                (x_loc-1, x_loc+1), 
+                (y_loc-1, y_loc+1),
+                x_str,
+                y_str
+            )
+        else:
+            # Extract element values and normalize
+            element_columns = [col for col in df_element.columns if col not in [x_str, y_str]]
+            eds_values = element_row[element_columns].values[0]
+            eds_values = eds_values / np.sum(eds_values)  # Normalize to sum=1
+        
+        # Combine EBSP and EDS data
+        eds_values = eds_values.reshape(1, -1)
+        input_X = np.hstack((input_X, eds_values))
+        
+        # Run constrained NMF
+        OUTPUT = constrained_nmf(input_X, components_combined)
+        learned_weights = OUTPUT.W.detach().numpy()
+        
+        # Calculate reconstruction metrics
+        X = torch.tensor(input_X, dtype=torch.float)
+        X_reconstructed = OUTPUT.reconstruct(H, OUTPUT.W)
+        
+        weights.append(learned_weights)
+        mse.append(Metrics(X_reconstructed, X)[0].detach().numpy())
+        r_square.append(Metrics(X_reconstructed, X)[1].detach().numpy())
+    
+    bar.finish()
+    weights = np.array(weights).squeeze(axis=1)
+    return weights, mse, r_square
+
 
 def run_cNMF_mixeds(ROI, components_combined, loc, edax):
     file_list = ROI #path for EBSPs
