@@ -27,6 +27,9 @@ from matplotlib.patches import Rectangle
 from matplotlib.lines import Line2D
 from skimage.metrics import structural_similarity as ssim
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from scipy.interpolate import interp1d
+from scipy.signal import find_peaks, peak_prominences
+import math
 torch.manual_seed(42)
 np.random.seed(42)
 
@@ -1028,5 +1031,215 @@ def reconstruct_weighted_signals(
 
     print(f"Done. CNMF reconstructions saved to: {recon_dir}")
     return residuals, residual_norms, rmses, ssims
+
+
+def plot_weight_histograms(weights, loc, coord_to_label, name_map, selected_phase=None, bins=None):
+    """
+    Plot weight distribution histograms with optional phase filtering.
     
+    Parameters:
+    - weights: array of shape (n_sample, n_features) with weight values
+    - loc: array of shape (n_sample, 2) with coordinates
+    - coord_to_label: dict mapping coordinates to label IDs
+    - name_map: dict mapping label IDs to phase names
+    - selected_phase: phase name to filter by (if None, use all data)
+    - bins: histogram bins (if None, use default 0-1 with 0.2 intervals)
+    """
+    if bins is None:
+        bins = np.arange(0, 1.01, 0.2)
+    
+    # Filter data if a specific phase is selected
+    if selected_phase is not None:
+        # Find the label ID for the selected phase
+        label_id = None
+        for lid, name in name_map.items():
+            if name == selected_phase:
+                label_id = lid
+                break
+        
+        if label_id is None:
+            raise ValueError(f"Phase '{selected_phase}' not found in name_map")
+        
+        # Get coordinates for this label
+        phase_coords = [coord for coord, lid in coord_to_label.items() if lid == label_id]
+        
+        # Get indices of samples with these coordinates
+        phase_indices = []
+        for i, (x, y) in enumerate(loc):
+            if (x, y) in phase_coords:
+                phase_indices.append(i)
+        
+        if not phase_indices:
+            print(f"No samples found for phase '{selected_phase}'")
+            return
+        
+        weights = weights[phase_indices]
+    
+    # Determine the number of weight features
+    n_features = weights.shape[1]
+    
+    # Create a grid of subplots
+    n_cols = min(3, n_features)  # Maximum 3 columns
+    n_rows = math.ceil(n_features / n_cols)
+    
+    fig = plt.figure(figsize=(5 * n_cols, 4 * n_rows))
+    
+    # Create a color map for the weights
+    colors = plt.cm.tab10(np.linspace(0, 1, n_features))
+    
+    for i in range(n_features):
+        ax = fig.add_subplot(n_rows, n_cols, i+1)
+        ax.hist(weights[:, i], bins=bins, color=colors[i], alpha=0.7, edgecolor='black')
+        ax.set_title(f'Weight {i+1} Distribution')
+        ax.set_xlabel('Weight Value')
+        ax.set_ylabel('Sample Count')
+        ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    if selected_phase:
+        plt.suptitle(f"Weight Distributions for Phase: {selected_phase}", y=1.02)
+    else:
+        plt.suptitle("Weight Distributions (All Phases)", y=1.02)
+    plt.show()
+
+def plot_weight_sum_histogram(weights, center=1.0, bins=50):
+    """
+    Plot histogram of the sum of weights, centered around a specific value.
+    
+    Parameters:
+    - weights: array of shape (n_sample, n_features) with weight values
+    - center: value to center the x-axis around
+    - bins: number of bins for the histogram
+    """
+    weight_sums = np.sum(weights, axis=1)
+    
+    plt.figure(figsize=(10, 6))
+    plt.hist(weight_sums, bins=bins, alpha=0.7, edgecolor='black')
+    plt.axvline(center, color='red', linestyle='--', label=f'Center: {center}')
+    plt.title('Distribution of Weight Sums')
+    plt.xlabel('Sum of Weights')
+    plt.ylabel('Sample Count')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.show()
+
+def get_intersection_points(weight_maps, y_indice, x_min, y_min, height, width):
+    """
+    Get intersection points for a specific y_index across multiple weight maps.
+    
+    Parameters:
+    - weight_maps: list of 2D arrays (height, width) representing weight maps
+    - y_indice: the y index to analyze
+    - x_min, y_min: coordinates of the top-left corner
+    - height, width: dimensions of the weight maps
+    
+    Returns:
+    - intersections: list of (x, y) coordinates where lines are closest to intersecting
+    - fig: the matplotlib figure object
+    """
+    n_features = len(weight_maps)
+    
+    # Extract the row for the given y_indice
+    row_data = [wm[y_indice, :] for wm in weight_maps]
+    
+    # Create x coordinates (relative)
+    x_indices = np.arange(width)
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Plot the weight lines
+    colors = plt.cm.tab10(np.linspace(0, 1, n_features))
+    
+    for i, (data, color) in enumerate(zip(row_data, colors)):
+        ax.plot(x_indices, data, color=color, label=f'Weight {i+1}', linewidth=2)
+    
+    # Find intersection points between pairs of lines
+    intersections = []
+    
+    # Check all pairs
+    for i in range(n_features):
+        for j in range(i+1, n_features):
+            # Find points where the difference is minimized
+            diff = np.abs(row_data[i] - row_data[j])
+            min_diff_idx = np.argmin(diff)
+            min_diff = diff[min_diff_idx]
+            
+            # Only consider if the difference is below a threshold
+            if min_diff < 0.1:  # Adjust threshold as needed
+                x_intersect = x_indices[min_diff_idx]
+                y_intersect = (row_data[i][min_diff_idx] + row_data[j][min_diff_idx]) / 2
+                
+                # Convert to absolute coordinates
+                x_abs = x_min + x_intersect
+                y_abs = y_min + y_indice
+                
+                intersections.append((x_abs, y_abs, i, j, min_diff))
+                
+                # Mark the intersection point on the plot
+                ax.plot(x_intersect, y_intersect, 'o', markersize=8, 
+                        color='black', markeredgecolor='white', markeredgewidth=1)
+                ax.annotate(f'({x_abs}, {y_abs})', 
+                           (x_intersect, y_intersect),
+                           xytext=(5, 5), textcoords='offset points')
+    
+    ax.set_xlabel('X Relative Coordinate')
+    ax.set_ylabel('Weight Value')
+    ax.set_title(f'Weight Values at Y Relative Coordinate: {y_indice}')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return intersections, fig
+
+def get_weight_map(weights, loc, height, width):
+    n_features = weights.shape[1]
+    
+    # Reshape weights into 2D maps
+    weight_maps = []
+    for i in range(n_features):
+        weight_map = np.zeros((height, width))
+        for idx, (x, y) in enumerate(loc):
+            # Calculate relative coordinates
+            x_rel = x - np.min(loc[:, 0])
+            y_rel = y - np.min(loc[:, 1])
+            
+            # Ensure coordinates are within bounds
+            if 0 <= y_rel < height and 0 <= x_rel < width:
+                weight_map[int(y_rel), int(x_rel)] = weights[idx, i]
+        
+        weight_maps.append(weight_map)
+    return weight_maps
+
+def find_all_intersections(weights, loc, height, width):
+    """
+    Find all intersection points across all y_indices.
+    
+    Parameters:
+    - weights: array of shape (n_sample, n_features) with weight values
+    - loc: array of shape (n_sample, 2) with coordinates
+    - height, width: dimensions to reshape the weights into
+    
+    Returns:
+    - all_intersections: list of all intersection points (x, y, feature1, feature2, diff)
+    """
+    weight_maps = get_weight_map(weights, loc, height, width)
+    
+    # Find x_min, y_min (top-left corner)
+    x_min = np.min(loc[:, 0])
+    y_min = np.min(loc[:, 1])
+    
+    all_intersections = []
+    
+    # Iterate over all y_indices
+    for y_indice in range(height):
+        intersections, _ = get_intersection_points(
+            weight_maps, y_indice, x_min, y_min, height, width
+        )
+        all_intersections.extend(intersections)
+    
+    return all_intersections
+
     
