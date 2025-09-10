@@ -1,11 +1,18 @@
 import os
 import re
 import numpy as np
+import pandas as pd
 import kikuchipy as kp
 import cv2
 import torch
 from torch.utils.data import Dataset
 from skimage.exposure import rescale_intensity
+# from data_processing import signal_process
+
+import h5py
+import numpy as np
+import torch
+from torch.utils.data import Dataset, get_worker_info
 
 # def img_normalization(pattern):
 #     """
@@ -263,7 +270,7 @@ def coord_xmap_dict(xmap, step=0.05):
         ix, iy = self.indices[idx]
         return (ix, iy), image
 
-class KikuchiParquetDataset(Dataset):
+# class KikuchiParquetDataset(Dataset):
     """
     Dataset for Parquet produced by get_processed_signals_local():
       columns: x (int), y (int), features (list<float>, length = H*W)
@@ -293,27 +300,16 @@ class KikuchiParquetDataset(Dataset):
         self.normalize = normalize
         self.dtype = dtype
 
-        # Open file and build index of row-group boundaries for O(1) mapping
-        self.pf = pq.ParquetFile(parquet_path)
-        self.rg_sizes = [self.pf.metadata.row_group(i).num_rows
-                         for i in range(self.pf.metadata.num_row_groups)]
-        self.cum_sizes = np.cumsum(self.rg_sizes)
-        self.N = int(self.cum_sizes[-1])
-
-        # Pre-bind column list
-        self.columns = ['x', 'y', 'features']
+        # Read the entire parquet file into memory
+        self.df = pd.read_parquet(parquet_path)
+        self.N = len(self.df)
+        
+        print(f"Loaded {self.N} samples from {parquet_path}")
 
     def __len__(self):
         return self.N
 
-    def _locate(self, idx):
-        """Map global row index -> (row_group_id, local_index)."""
-        # np.searchsorted returns first rg with cum_sizes[rg] > idx
-        rg = int(np.searchsorted(self.cum_sizes, idx, side='right'))
-        start = 0 if rg == 0 else self.cum_sizes[rg-1]
-        local = int(idx - start)
-        return rg, local
-
+    
     @staticmethod
     def _minmax_scale(arr, mode):
         if mode == 'none':
@@ -338,27 +334,136 @@ class KikuchiParquetDataset(Dataset):
         if idx < 0 or idx >= self.N:
             raise IndexError(idx)
 
-        rg, local = self._locate(idx)
-
-        # Read just this row-group (cheap) and then slice 1 row (very small)
-        # NOTE: If your row-groups are huge, you can add .slice(local, 1) to avoid a big pandas conversion.
-        batch_tbl = self.pf.read_row_group(rg, columns=self.columns)
-        row_tbl = batch_tbl.slice(local, 1)  # 1-row Table
-
-        # Convert to Python dict for simplicity (tiny: only 1 row)
-        rec = row_tbl.to_pydict()
-        x = int(rec['x'][0])
-        y = int(rec['y'][0])
-
-        feats = np.asarray(rec['features'][0], dtype=self.dtype)
+        # Get the row directly from the pandas DataFrame
+        row = self.df.iloc[idx]
+        x = int(row['x'])
+        y = int(row['y'])
+        
+        # Handle both list and numpy array formats for features
+        if hasattr(row['features'], '__array__'):
+            feats = np.asarray(row['features'], dtype=self.dtype)
+        else:
+            feats = np.array(row['features'], dtype=self.dtype)
+            
         # Optional scaling
         feats = self._minmax_scale(feats, self.normalize)
 
         # Reshape to (1, H, W)
         if feats.size != self.H * self.W:
-            raise ValueError(f"Row {idx}: features length {feats.size} != H*W {self.H*self.W}")
-        img = feats.reshape(1, self.H, self.W)
+            warnings.warn(f"Row {idx}: features length {feats.size} != H*W {self.H*self.W}. "
+                         f"Resizing with interpolation.")
+            # Resize using interpolation if the size doesn't match
+            feats = feats.reshape(-1, 1)  # Make it 2D for resize
+            feats = torch.from_numpy(feats).unsqueeze(0)  # Add channel dimension
+            feats = torch.nn.functional.interpolate(feats, size=(self.H, self.W), mode='bilinear')
+            feats = feats.squeeze(0).numpy()
+        else:
+            feats = feats.reshape(1, self.H, self.W)
 
         # To tensor
-        img_t = torch.from_numpy(img)  # dtype float32 by default above
+        img_t = torch.from_numpy(feats)
         return (x, y), img_t
+    
+    
+class KikuchiH5Dataset(Dataset):
+    """
+    Map-style dataset for an HDF5 written as:
+      /images : float32, shape (N, 1, H, W)  (or (N, H, W) also supported)
+      /coords : int32,   shape (N, 2)        -> [x, y] per sample
+
+    Returns: ((x, y), torch.FloatTensor of shape (1, H, W))
+    """
+    def __init__(self, h5_path, normalize="none", dtype=np.float32, use_swmr=True):
+        """
+        Args:
+          h5_path   : path to HDF5 file
+          normalize : 'none' | 'zero_one' | 'minus_one_one' (per-sample min-max)
+          dtype     : numpy dtype to read images as (usually np.float32)
+          use_swmr  : open file in SWMR read mode for multi-worker dataloaders
+        """
+        self.h5_path = h5_path
+        self.normalize = normalize
+        self.dtype = dtype
+        self.use_swmr = use_swmr
+
+        # Light metadata read (do not keep file open)
+        with h5py.File(self.h5_path, "r") as f:
+            if "images" not in f or "coords" not in f:
+                raise KeyError("HDF5 must contain datasets 'images' and 'coords'.")
+
+            self.N = int(f["images"].shape[0])
+
+            imshape = f["images"].shape  # (N,1,H,W) or (N,H,W)
+            if len(imshape) == 4:
+                _, self.C, self.H, self.W = imshape
+            elif len(imshape) == 3:
+                self.C, self.H, self.W = 1, imshape[1], imshape[2]
+            else:
+                raise ValueError(f"Unexpected 'images' shape: {imshape}")
+
+            if f["coords"].shape != (self.N, 2):
+                raise ValueError(f"'coords' must be (N,2); got {f['coords'].shape}")
+
+        # Per-worker file handle cache
+        self._fh = None
+
+    def __len__(self):
+        return self.N
+
+    @staticmethod
+    def _minmax_scale(a: np.ndarray, mode: str) -> np.ndarray:
+        if mode == "none":
+            return a
+        a = a.astype(np.float32, copy=False)
+        amin = np.nanmin(a)
+        amax = np.nanmax(a)
+        if not np.isfinite(amin) or not np.isfinite(amax) or amax <= amin:
+            # degenerate; avoid NaNs/Infs
+            return np.zeros_like(a, dtype=np.float32)
+        if mode == "zero_one":
+            return (a - amin) / (amax - amin)
+        elif mode == "minus_one_one":
+            a01 = (a - amin) / (amax - amin)
+            return a01 * 2.0 - 1.0
+        else:
+            return a
+
+    def _ensure_open(self):
+        # One H5 handle per worker/process; SWMR=True for concurrent readers
+        if self._fh is None:
+            # NOTE: SWMR requires file created with libver='latest', but works fine to read otherwise
+            self._fh = h5py.File(self.h5_path, "r", swmr=self.use_swmr)
+
+    def __getitem__(self, idx):
+        if idx < 0:
+            idx = self.N + idx
+        if idx < 0 or idx >= self.N:
+            raise IndexError(idx)
+
+        self._ensure_open()
+        imgs = self._fh["images"]
+        coords = self._fh["coords"]
+
+        # coords[i] -> [x, y]
+        x, y = coords[idx]
+        x = int(x); y = int(y)
+
+        arr = imgs[idx]                        # (1,H,W) or (H,W)
+        arr = np.asarray(arr, dtype=self.dtype)
+        if arr.ndim == 2:                      # (H,W) -> (1,H,W)
+            arr = arr[None, ...]
+
+        # Per-sample normalization
+        arr = self._minmax_scale(arr, self.normalize)
+
+        # To tensor
+        img_t = torch.from_numpy(arr).float()  # (1,H,W)
+        return (x, y), img_t
+
+    def __del__(self):
+        try:
+            if self._fh is not None:
+                self._fh.close()
+        except Exception:
+            pass
+

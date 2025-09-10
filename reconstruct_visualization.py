@@ -4,53 +4,96 @@ from sklearn.decomposition import PCA
 from constrainedmf.nmf.models import NMF
 import numpy as np
 import torch
+import os
 import matplotlib.patches as mpatches
 
+@torch.no_grad()
+def get_latent_features(model, dataloader, device, phase_dict=None, max_points=None, return_logvar=False):
+    """
+    Collect latent means (mu) from model.encode() along with (x,y) and optional phase ids.
 
-def get_latent_features(model, dataloader, device, phase_dict,max_points=10):
+    Args
+    ----
+    model : VAE-like model with .encode() -> (mu, logvar)
+    dataloader : yields ((x_batch, y_batch), image_batch) OR (coords, image_batch)
+    device : torch.device
+    phase_dict : dict[(x,y) -> phase_id] or None
+    max_points : int or None, stop after collecting this many samples
+    return_logvar : bool, also return logvar if True
+
+    Returns
+    -------
+    latents : (N, D) float32
+    labels  : (N,) int or None  (phase ids from phase_dict, -1 if missing)
+    xs, ys  : lists of ints (length N)
+    (optional) logvars : (N, D) float32, if return_logvar=True
     """
-    Generates latent vectors (mu)
-    """
-    model.eval() # Set model to evaluation mode
+    model.eval()
+
     latents = []
-    all_labels = []
-    all_x_indices = []
-    all_y_indices = []
-    # print(f"Generating latent vectors (mu) for visualization (up to {max_points} points)...")
+    logvars = [] if return_logvar else None
+    labels  = [] if phase_dict is not None else None
+    xs_all, ys_all = [], []
 
-    count = 0
-    with torch.no_grad():
-        
-        for batch_idx, (batch_indices, data) in enumerate(dataloader):
-            
-            x_idx_tensor, y_idx_tensor = batch_indices
-            data_batch = data.to(device)
-            
-            # Get mu from the encoder
-            mu, _ = model.encode(data_batch) # Pass through encoder only
-            latents.append(mu.cpu().numpy())
-            
-            #get the phase id
-            x_list = x_idx_tensor.tolist()
-            y_list = y_idx_tensor.tolist()
-            batch_labels = [
-            phase_dict.get((x, y), -1)
-            for x, y in zip(x_list, y_list)
-            ]
-            all_labels.extend(batch_labels)
-            all_x_indices.extend(x_list)
-            all_y_indices.extend(y_list)
+    seen = 0
+    for batch in dataloader:
+        # Unpack: dataset yields ((x_batch, y_batch), image_batch)
+        if isinstance(batch, (list, tuple)) and len(batch) == 2:
+            (xb, yb), data = batch
+        else:
+            # Fallback: try to infer
+            raise RuntimeError("Expected dataloader to yield ((x_batch,y_batch), image_batch)")
 
-            count += len(data_batch)
-            if count >= max_points:
-                print(f"Reached {count} points, stopping latent vector generation.")
-                break
+        # Convert coords to CPU numpy lists
+        if torch.is_tensor(xb): x_list = xb.cpu().tolist()
+        else:                   x_list = list(xb)
+        if torch.is_tensor(yb): y_list = yb.cpu().tolist()
+        else:                   y_list = list(yb)
 
-    # Concatenate all mu vectors
+        data = data.to(device, dtype=torch.float32, non_blocking=True)
+
+        # IMPORTANT: call encode() (not forward) so we only get mu, logvar
+        mu, log_var = model.encode(data)
+        mu_np = mu.detach().cpu().numpy().astype(np.float32)
+        latents.append(mu_np)
+
+        if return_logvar:
+            logvars.append(log_var.detach().cpu().numpy().astype(np.float32))
+
+        # optional phase ids
+        if phase_dict is not None:
+            batch_labels = [phase_dict.get((int(x), int(y)), -1) for x, y in zip(x_list, y_list)]
+            labels.extend(batch_labels)
+
+        xs_all.extend([int(x) for x in x_list])
+        ys_all.extend([int(y) for y in y_list])
+
+        seen += len(x_list)
+        if max_points is not None and seen >= max_points:
+            # trim last chunk to exact max_points if needed
+            extra = seen - max_points
+            if extra > 0:
+                latents[-1] = latents[-1][:-extra]
+                xs_all = xs_all[:-extra]
+                ys_all = ys_all[:-extra]
+                if phase_dict is not None:
+                    labels  = labels[:-extra]
+                if return_logvar:
+                    logvars[-1] = logvars[-1][:-extra]
+            break
+
+    if len(latents) == 0:
+        raise RuntimeError("No latents collected. Check dataloader / model.encode().")
+
     latents = np.concatenate(latents, axis=0)
-    all_labels = np.array(all_labels)
-    print(f"Collected {latents.shape[0]} latent vectors (mu) with dimension {latents.shape[1]}")
-    return latents, all_labels, all_x_indices, all_y_indices
+    labels  = np.array(labels) if labels is not None else None
+    if return_logvar:
+        logvars = np.concatenate(logvars, axis=0)
+
+    print(f"Collected {latents.shape[0]} latent vectors (mu), dim={latents.shape[1]}")
+    if return_logvar:
+        return latents, labels, xs_all, ys_all, logvars
+    return latents, labels, xs_all, ys_all
 
 # --- Image Reconstruction Visualization ---
 def reconstruct_and_visualize(model, device, dataloader, num_images=5):
@@ -181,67 +224,140 @@ def latent_space_visualize(model, dataloader, device, phase_dict, method='tsne',
     plt.legend(handles=handles, title='Phase')
     plt.show()
     
-def visualize_latent_maps(latents, latent_dim, cmap='viridis', suptitle='Latent Feature Maps',highlight_idx=None, save_idx=None, save_dir='.',save_prefix='latent_map'):
+def visualize_latent_maps(
+    latents, xs, ys,
+    latent_idx=None,                # int | list[int] | None (None=all dims)
+    cmap='viridis',
+    suptitle='Latent Feature Maps',
+    save_idx=None,                  # int | list[int] | list of ints | None
+    save_dir='.',
+    save_prefix='latent_dim',
+    origin='upper',                 # 'upper' (image-like) or 'lower' (math axes)
+    roi_xrange=None,                # (xmin, xmax) inclusive on integer x, or None
+    roi_yrange=None                 # (ymin, ymax) inclusive on integer y, or None
+):
     """
-    Create latent space feature maps. Each map represents the space distribution of each latent space.
-    Display the specified feature colormap and save 
+    Build 2D maps for each latent dimension using provided (x,y) integer coordinates.
+    Works for any x/y offset; the grid is defined by unique xs/ys after ROI filtering.
 
-    Args:
-        latents (np.ndarray): shape (samples number, latent dimensions), in the case, latent dimensions are 16, modified when it changed
+    Args
+    ----
+    latents : (N, D) array
+    xs, ys  : length-N integer arrays/lists (coordinates)
+    latent_idx : which latent dims to plot (None => all)
+    origin : 'upper' puts top-left at (min_x, min_y) like images; 'lower' puts it bottom-left.
+    roi_xrange, roi_yrange : optional inclusive ROI filters on x and y
+
+    Returns
+    -------
+    (fig, axes), maps_dict, axes_info
+      maps_dict : {dim: 2D array of shape (len(uniq_y), len(uniq_x))}
+      axes_info : {"uniq_x": uniq_x, "uniq_y": uniq_y}
     """
-    # check the latent dimensions
-    assert latents.ndim == 2 and latents.shape[0] == 31*31 and latents.shape[1] == latent_dim, \
-        f"shape of latents has to be (961*{latent_dim})"
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
 
-    # reshape
-    feature_maps = latents.T.reshape(latent_dim, 31, 31)
-    
-    all_idx = list(range(latent_dim))
-    if highlight_idx is not None:
-        if isinstance(highlight_idx, int):
-            plot_idx = [highlight_idx]
-        else:
-            plot_idx = list(highlight_idx)
+    latents = np.asarray(latents)
+    xs = np.asarray(xs, dtype=int)
+    ys = np.asarray(ys, dtype=int)
+    N, D = latents.shape
+    assert xs.shape[0] == N and ys.shape[0] == N, "xs/ys must match latents N"
+
+    # ----- pick latent dims -----
+    if latent_idx is None:
+        dims = list(range(D))
+    elif isinstance(latent_idx, int):
+        dims = [latent_idx]
     else:
-        plot_idx = all_idx
+        dims = list(latent_idx)
 
-    # create the subplots grid
-    n = len(plot_idx)
+    # ----- ROI filtering (inclusive) -----
+    mask = np.ones(N, dtype=bool)
+    if roi_xrange is not None:
+        xmin, xmax = roi_xrange
+        mask &= (xs >= xmin) & (xs < xmax)
+    if roi_yrange is not None:
+        ymin, ymax = roi_yrange
+        mask &= (ys >= ymin) & (ys < ymax)
+
+    if not np.any(mask):
+        raise ValueError("No points remain after ROI filtering.")
+
+    xs_f = xs[mask]
+    ys_f = ys[mask]
+    lat_f = latents[mask, :]
+
+    # ----- build grid axes from unique coords -----
+    uniq_x = np.unique(xs_f)
+    uniq_y = np.unique(ys_f)
+    nx, ny = len(uniq_x), len(uniq_y)
+    if nx == 0 or ny == 0:
+        raise ValueError("Empty grid after ROI filtering.")
+
+    x_to_ix = {x: i for i, x in enumerate(uniq_x)}
+    y_to_iy = {y: i for i, y in enumerate(uniq_y)}
+
+    # ----- accumulate (avg if duplicates exist) -----
+    counts = np.zeros((ny, nx), dtype=np.int32)
+    maps = {d: np.zeros((ny, nx), dtype=np.float32) for d in dims}
+
+    for k in range(xs_f.shape[0]):
+        ix = x_to_ix[xs_f[k]]
+        iy = y_to_iy[ys_f[k]]
+        counts[iy, ix] += 1
+        for d in dims:
+            maps[d][iy, ix] += float(lat_f[k, d])
+
+    # average
+    safe_counts = counts.copy()
+    safe_counts[safe_counts == 0] = 1
+    for d in dims:
+        maps[d] = maps[d] / safe_counts
+
+    # ----- plot -----
+    n = len(dims)
     n_cols = min(4, n)
     n_rows = int(np.ceil(n / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*3, n_rows*3))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*3.2, n_rows*3.0))
+    if n_rows * n_cols == 1:
+        axes = np.array([axes])
     axes = axes.flatten()
 
-    # plot the specified maps
-    for ax_i, idx in enumerate(plot_idx):
+    # image extent so ticks show real coords; +1 so each integer cell spans 1 unit
+    extent = [uniq_x.min(), uniq_x.max() + 1, uniq_y.min(), uniq_y.max() + 1]
+
+    for ax_i, d in enumerate(dims):
         ax = axes[ax_i]
-        im = ax.imshow(feature_maps[idx], cmap=cmap, origin='lower')
-        ax.set_title(f'Latent Dim #{idx+1}', fontsize=10)
-        ax.axis('off')
+        im = ax.imshow(maps[d], cmap=cmap, origin=origin, extent=extent, aspect='auto')
+        ax.set_title(f'Latent dim #{d}', fontsize=10)
+        ax.set_xlabel('x'); ax.set_ylabel('y')
         fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        
+
+        # save single images for selected dims
         if save_idx is not None:
             save_list = [save_idx] if isinstance(save_idx, int) else list(save_idx)
-            if idx in save_list:
-                # create single figure
-                fig2, ax2 = plt.subplots(figsize=(4,4))
-                im2 = ax2.imshow(feature_maps[idx], cmap=cmap, origin='lower')
-                ax2.set_title(f'Latent Dim #{idx+1}', fontsize=12)
-                ax2.axis('off')
+            if d in save_list:
+                os.makedirs(save_dir, exist_ok=True)
+                fig2, ax2 = plt.subplots(figsize=(4, 4))
+                im2 = ax2.imshow(maps[d], cmap=cmap, origin=origin, extent=extent, aspect='auto')
+                ax2.set_title(f'Latent dim #{d}', fontsize=12)
+                ax2.set_xlabel('x'); ax2.set_ylabel('y')
                 fig2.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
-                fname = f"{save_prefix}_{idx+1}.png"
-                fig2.savefig(f"{save_dir}/{fname}", dpi=300, bbox_inches='tight')
+                fname = f"{save_prefix}_{d}.png"
+                fig2.savefig(os.path.join(save_dir, fname), dpi=300, bbox_inches='tight')
                 plt.close(fig2)
 
-    # hide the extra ones
-    for j in range(len(plot_idx), len(axes)):
+    # hide unused axes
+    for j in range(len(dims), len(axes)):
         axes[j].axis('off')
 
-    fig.suptitle(suptitle, fontsize=16)
-    plt.tight_layout(rect=[0,0,1,0.96])
+    fig.suptitle(suptitle, fontsize=14)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()
 
-    return fig, axes
+    axes_info = {"uniq_x": uniq_x, "uniq_y": uniq_y}
+    return (fig, axes), maps, axes_info
 #def latent_space_visualize_cnmf(model, dataloader, device, phase_dict, constraints_mu, max_points=100):
     
     """

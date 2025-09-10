@@ -2,151 +2,250 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-
+from torch.cuda.amp import autocast, GradScaler
 
 
     
 class VAE(nn.Module):
-    def __init__(self, latent_dim):
-        super(VAE, self).__init__()
+    """
+    Input: (B,1,H,W). n_down stride-2 convs in encoder; decoder upsamples back
+    to the recorded sizes. Fully-connected layers are lazily initialized from
+    the first batch so any H,W works (as long as all batches use the same H,W).
+    """
+    def __init__(self, latent_dim=16, base_channels=32, n_down=5, upsample_mode="nearest"):
+        super().__init__()
         self.latent_dim = latent_dim
-        
-        # ========== Encoder ==========
-        # Input: (batch_size, 1, 120, 120)
-        self.encoder = nn.Sequential(
-            nn.Conv2d(1, 4, kernel_size=9, stride=2, padding=0),          # (120-9)/2 + 1 = 55.5 -> 56; 1 = input_channel; 4 = output_channel
-            nn.LeakyReLU(0.2, inplace = True),
-            # Output: (batch_size, 4, 56, 56)
-            
-            nn.Conv2d(4, 8, kernel_size=9, stride=2, padding=0),  
-            nn.LeakyReLU(0.2, inplace = True),
-            # Output: (batch_size, 8, 24, 24)
-            
-            nn.Conv2d(8, 16, kernel_size=9, stride=2, padding=0),   
-            nn.LeakyReLU(0.2, inplace = True),
-            # Output: (batch_size, 16, 8, 8)
-            
-            nn.Conv2d(16, 32, kernel_size=8, stride=2, padding=0),
-            nn.LeakyReLU(0.2, inplace = True)
-            # Output: (batch_size, 32, 1, 1)
-            
-        )
-        
-        # Flatten and FC layers for mu and logvar
-        self.fc_mu = nn.Linear(32 * 1 * 1, latent_dim)  # mean value
-        self.fc_logvar = nn.Linear(32 * 1 * 1, latent_dim) # log variance
+        self.base = base_channels
+        self.n_down = n_down
+        self.upsample_mode = upsample_mode  # 'nearest' or 'bilinear'
 
-        # Decoder input
-        # FC layer to project latent vector z to the size needed for reshaping
-        self.fc_decode = nn.Linear(latent_dim, 32 * 4 * 4)
-        
-        # Transposed Convolutions
-        # Input: (batch_size, 32, 1, 1)
-        # ========== Decoder ==========
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(32, 16, kernel_size=9, stride=2, padding=2, output_padding=0), # (4-1)/2 -2*2 + 9 + 0 = 11
-            nn.LeakyReLU(0.2, inplace = True),
-            # Output: (batch_size, 16, 11, 11)
-            
-            nn.ConvTranspose2d(16, 8, kernel_size=9, stride=2, padding=1, output_padding=0),
-            nn.LeakyReLU(0.2, inplace = True),
-            # Output: (batch_size, 8, 27, 27)
-            
-            nn.ConvTranspose2d(8, 4, kernel_size=9, stride=2, padding=0, output_padding=0),
-            nn.LeakyReLU(0.2, inplace = True),
-            # Output: (batch_size, 4, 61, 61)
-            
-            nn.ConvTranspose2d(4, 1, kernel_size=9, stride=2, padding=5, output_padding=1),  
+        # ----- Encoder: Conv + LeakyReLU, stride=2 -----
+        enc = []
+        in_c = 1
+        ch = self.base
+        for _ in range(n_down):
+            enc += [
+                nn.Conv2d(in_c, ch, kernel_size=3, stride=2, padding=1, bias=True),
+                nn.LeakyReLU(0.2, inplace=True),
+            ]
+            in_c = ch
+            ch = min(ch * 2, 512)
+        self.encoder = nn.Sequential(*enc)
+        self.enc_out_ch = in_c  # channels after last block
+
+        # FC layers initialized after we see the first input
+        self.fc_mu = None
+        self.fc_logvar = None
+        self.fc_decode = None
+        self._fc_shape = None  # (deepest_h, deepest_w)
+
+        # ----- Decoder refine convs (applied after each upsample) -----
+        self.dec_refine = nn.ModuleList()
+        chs = [self.enc_out_ch]
+        for _ in range(n_down - 1):
+            chs.append(max(chs[-1] // 2, self.base))
+        for i in range(len(chs) - 1):
+            self.dec_refine.append(
+                nn.Sequential(
+                    nn.Conv2d(chs[i], chs[i+1], kernel_size=3, padding=1),
+                    nn.LeakyReLU(0.2, inplace=True),
+                )
+            )
+
+        self.out_head = nn.Sequential(
+            nn.Conv2d(self.base, 1, kernel_size=3, padding=1),
             nn.Tanh()
-            # Output: (batch_size, 1, 120, 120)
-
         )
-    
+
+        self._enc_shapes = None  # [(H0,W0), (H1,W1), ..., (Hn,Wn)]
+        self._init_weights()
+
+    def _init_weights(self):
+        # Xavier for convs, Kaiming for LeakyReLU can also be fine; either is OK here.
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d) or isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def _lazy_fc_init(self, deepest_h, deepest_w, device):
+        flat = self.enc_out_ch * deepest_h * deepest_w
+        self.fc_mu = nn.Linear(flat, self.latent_dim).to(device)
+        self.fc_logvar = nn.Linear(flat, self.latent_dim).to(device)
+        self.fc_decode = nn.Linear(self.latent_dim, flat).to(device)
+        self._fc_shape = (deepest_h, deepest_w)
+
     def encode(self, x):
-        x = self.encoder(x)
-        x = torch.flatten(x, start_dim=1) # flatten (batch_size, latent_dim)
-        mu = self.fc_mu(x)
-        log_var = self.fc_logvar(x)
+        # record shapes after each conv+act
+        self._enc_shapes = []
+        H, W = x.shape[-2:]
+        self._enc_shapes.append((H, W))
+        z = x
+        for layer in self.encoder:
+            z = layer(z)
+            if isinstance(layer, nn.LeakyReLU):
+                self._enc_shapes.append((z.shape[2], z.shape[3]))
+
+        deepest_h, deepest_w = self._enc_shapes[-1]
+        if self.fc_mu is None:
+            self._lazy_fc_init(deepest_h, deepest_w, x.device)
+        else:
+            # safety: ensure consistent spatial size across batches
+            if self._fc_shape != (deepest_h, deepest_w):
+                raise RuntimeError(
+                    f"VAE received different input size later in training. "
+                    f"First FC was built for {self._fc_shape}, but got {(deepest_h, deepest_w)}."
+                )
+
+        z_flat = torch.flatten(z, start_dim=1)
+        mu = self.fc_mu(z_flat)
+        log_var = self.fc_logvar(z_flat)
         return mu, log_var
-    
-    def decode(self, z):
-        # print(f"Decoder input z shape: {z.shape}") # Should be [batch, 16]
-        x = self.fc_decode(z)
-        x = x.view(-1, 32, 4, 4)
-        # print(f"Shape before dec_tconv1 (after view): {x.shape}") # Should be [batch, 32, 4, 4]
-        # the start channels, decoder dimensions [32, 4, 4]
-        return self.decoder(x)
-    
-    def reparameterize(self, mu, log_var):
-        std = torch.exp(0.5 * log_var) # standard deviation
-        eps = torch.randn_like(std) # Sample epsilon from N(0, I)
+
+    @staticmethod
+    def reparameterize(mu, log_var):
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
         return mu + eps * std
-    
+
+    def decode(self, z):
+        assert self._enc_shapes is not None and len(self._enc_shapes) >= 2, \
+            "Call encode() before decode(), shapes missing."
+        deepest_h, deepest_w = self._enc_shapes[-1]
+        B = z.size(0)
+        x = self.fc_decode(z).view(B, self.enc_out_ch, deepest_h, deepest_w)
+
+        # Upsample step by step back to input size
+        # enc_shapes: [(H0,W0), (H1,W1), ..., (Hn,Wn)]
+        for i, target in enumerate(reversed(self._enc_shapes[:-1])):
+            th, tw = target
+            x = F.interpolate(x, size=(th, tw), mode=self.upsample_mode, align_corners=False if self.upsample_mode=='bilinear' else None)
+            if i < len(self.dec_refine):
+                x = self.dec_refine[i](x)
+
+        return self.out_head(x)
+
     def forward(self, x):
         mu, log_var = self.encode(x)
         z = self.reparameterize(mu, log_var)
-        recon_x = self.decode(z)
-        return recon_x, mu, log_var
+        recon = self.decode(z)
+        return recon, mu, log_var
 
 
-# --- VAE Loss Function (MSE + KLD) ---
-def vae_loss(recon_x, x, mu, log_var, kl_weight=1.0):
-    # L2 reconstruction loss
-    mse_loss = F.mse_loss(recon_x, x, reduction='sum')
-    
-    # KL divergence
-    kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
-    
-    return mse_loss + kl_weight * kl_loss, mse_loss, kl_loss
+def vae_loss(recon_x, x, mu, log_var, kl_weight=1.0, reduction="mean"):
+    mse = F.mse_loss(recon_x, x, reduction=reduction)
+    if reduction == "sum":
+        kld = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+    else:
+        kld = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())
+    return mse + kl_weight * kld, mse, kld
 
-# --- VAE Training ---
-def train_vae(dataloader, model, device, optimizer, num_epochs=20):
+def train_vae(
+    dataloader,
+    model,
+    device,
+    optimizer,
+    num_epochs=20,
+    kl_weight=1.0,
+    loss_reduction="mean",      # 'mean' or 'sum'
+    use_amp=False,              # mixed precision
+    grad_clip=1.0,
+    save_path="vae_model_leaky_tanh.pth",
+    log_every=30,
+    save_best=True
+):
+    model.to(device)
     model.train()
+
+    use_amp = bool(use_amp and device.type == "cuda")
+    scaler = GradScaler(enabled=use_amp)
+
+    history = []
+    best_avg_loss = float("inf")
+
     for epoch in range(num_epochs):
         total_loss = 0.0
-        total_mse = 0.0
-        total_kl = 0.0
-        
-        for batch_idx, (batch_indices, data) in enumerate(dataloader):
-            data = data.to(device) # Data should be in [-1, 1] range
-            
-            # Ensure data has the correct dtype (float32 is standard for models)
-            if data.dtype != torch.float32:
-                data = data.to(dtype=torch.float32)
+        total_mse  = 0.0
+        total_kld  = 0.0
+        n_seen     = 0
 
-            optimizer.zero_grad()
-            recon_data, mu, log_var = model(data) # recon_batch will be in [-1, 1] range
-            
-            # Calculate individual loss components for monitoring
-            loss, mse_loss, kl_loss = vae_loss(recon_data, data, mu, log_var)
-            loss.backward()
-            optimizer.step()
-            
+        for batch_idx, batch in enumerate(dataloader):
+            # dataset yields: ((x,y), tensor)
+            if isinstance(batch, (list, tuple)) and len(batch) == 2:
+                _, data = batch
+            else:
+                data = batch[0] if isinstance(batch, (list, tuple)) else batch
 
-            total_loss += loss.item()
-            total_mse += mse_loss.item()
-            total_kl += kl_loss.item()
-            
-            if batch_idx % 30 == 0:   # 30 = max(batch_idx)
-                print(f'Epoch [{epoch+1}/{num_epochs}], Batch [{batch_idx+1}/{len(dataloader)}], '
-                    f'Loss: {loss.item() / len(data):.4f}, '
-                    f'MSE: {mse_loss.item() / len(data):.4f}, '
-                    f'KLD: {kl_loss.item() / len(data):.4f}')
+            bs = data.size(0)
+            n_seen += bs
 
+            data = data.to(device, dtype=torch.float32, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
 
-        avg_loss = total_loss / len(dataloader.dataset)
-        avg_mse = total_mse / len(dataloader.dataset)
-        avg_kld = total_kl / len(dataloader.dataset)
-        print(f'====> Epoch: {epoch+1} Average loss: {avg_loss:.4f} (MSE: {avg_mse:.4f}, KLD: {avg_kld:.4f})')
+            if use_amp:
+                with autocast():
+                    recon, mu, log_var = model(data)
+                    loss, mse_loss, kl_loss = vae_loss(
+                        recon, data, mu, log_var,
+                        kl_weight=kl_weight,
+                        reduction=loss_reduction
+                    )
+                # backward on scaled loss
+                scaler.scale(loss).backward()
+                # unscale before clipping
+                if grad_clip is not None:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                recon, mu, log_var = model(data)
+                loss, mse_loss, kl_loss = vae_loss(
+                    recon, data, mu, log_var,
+                    kl_weight=kl_weight,
+                    reduction=loss_reduction
+                )
+                loss.backward()
+                if grad_clip is not None:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
+                optimizer.step()
 
-    print("Training finished.")
-    
-    # --- Save the model ---
-    torch.save(model.state_dict(), 'vae_model_leaky_tanh.pth')
-    print("Model saved to vae_model_leaky_tanh.pth")
+            # accumulate epoch totals
+            if loss_reduction == "sum":
+                total_loss += loss.item()
+                total_mse  += mse_loss.item()
+                total_kld  += kl_loss.item()
+            else:  # 'mean' per-batch -> weight by batch size
+                total_loss += loss.item() * bs
+                total_mse  += mse_loss.item() * bs
+                total_kld  += kl_loss.item() * bs
 
+            if (batch_idx % log_every) == 0:
+                print(f"Epoch [{epoch+1}/{num_epochs}] "
+                      f"Batch {batch_idx+1}  "
+                      f"loss/b: {loss.item():.4f}  mse/b: {mse_loss.item():.4f}  kld/b: {kl_loss.item():.4f}")
 
+        if n_seen == 0:
+            print(f"Epoch {epoch+1}: no samples seen.")
+            continue
 
+        avg_loss = total_loss / n_seen
+        avg_mse  = total_mse  / n_seen
+        avg_kld  = total_kld  / n_seen
+
+        history.append({"epoch": epoch+1, "avg_loss": avg_loss, "avg_mse": avg_mse, "avg_kld": avg_kld})
+        print(f"====> Epoch: {epoch+1}  avg_loss: {avg_loss:.4f}  (mse: {avg_mse:.4f}, kld: {avg_kld:.4f})")
+
+        if save_best and avg_loss < best_avg_loss:
+            best_avg_loss = avg_loss
+            torch.save(model.state_dict(), save_path)
+            print(f"[best] Saved model to {save_path} (avg_loss={avg_loss:.4f})")
+
+    if not save_best:
+        torch.save(model.state_dict(), save_path)
+        print(f"Model saved to {save_path}")
+
+    return history
 
 
 
