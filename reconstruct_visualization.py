@@ -329,7 +329,10 @@ def visualize_latent_maps(
 
     for ax_i, d in enumerate(dims):
         ax = axes[ax_i]
-        im = ax.imshow(maps[d], cmap=cmap, origin=origin, extent=extent, aspect='auto')
+        im = ax.imshow(maps[d], cmap=cmap, origin=origin, extent=extent, interpolation='nearest',aspect='equal')
+        ax.set_xlim(uniq_x.min(), uniq_x.max()+1)
+        ax.set_ylim(uniq_y.min(), uniq_y.max()+1)
+
         ax.set_title(f'Latent dim #{d}', fontsize=10)
         ax.set_xlabel('x'); ax.set_ylabel('y')
         fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -340,7 +343,10 @@ def visualize_latent_maps(
             if d in save_list:
                 os.makedirs(save_dir, exist_ok=True)
                 fig2, ax2 = plt.subplots(figsize=(4, 4))
-                im2 = ax2.imshow(maps[d], cmap=cmap, origin=origin, extent=extent, aspect='auto')
+                im2 = ax2.imshow(maps[d], cmap=cmap, origin=origin, extent=extent, interpolation='nearest',aspect='equal')
+                ax.set_xlim(uniq_x.min(), uniq_x.max()+1)
+                ax.set_ylim(uniq_y.min(), uniq_y.max()+1)
+
                 ax2.set_title(f'Latent dim #{d}', fontsize=12)
                 ax2.set_xlabel('x'); ax2.set_ylabel('y')
                 fig2.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)

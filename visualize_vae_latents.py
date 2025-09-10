@@ -70,7 +70,7 @@ if __name__ == "__main__":
     
     
     latents, all_labels, all_x_indices, all_y_indices =get_latent_features(model, dataloader, device, coord_phase_dict, None, False)
-    
+    # print(all_x_indices)
     # Latent space decomposition: select n samples for visualization
     # print("\n--- Visualizing Latent Space (using cNMF) ---")
     # latent_space_visualize(model, dataloader, device, phase_dict, method='cnmf', max_points=961, components_coords=[(40, 27), (44, 12)]) # Increase batches for better viz
@@ -86,7 +86,10 @@ if __name__ == "__main__":
     suptitle="latent feature map",
     save_idx=[0,1,2,3],
     save_dir='maps',
-    save_prefix='dim',
-    roi_xrange=roi_xrange,
-    roi_yrange=roi_yrange
+    save_prefix='full_dim',
+    roi_xrange=None,
+    roi_yrange=None
     )
+    
+    
+    

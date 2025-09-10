@@ -31,9 +31,9 @@ if __name__ == "__main__":
     coord_phase_dict = coord_phase_dict_from_dataframe(df)
     
     kikuchi_p = "../ebsd_kikuchi/20min_processed_signals.h5"
-    H, W = 400,500
-    roi_xrange = (200,400)
-    roi_yrange = (0,100)
+    # H, W = 400,500
+    # roi_xrange = (200,400)
+    # roi_yrange = (0,100)
     ds = KikuchiH5Dataset(kikuchi_p, normalize='minus_one_one')
     # Hyperparameter setting
     latent_dim = 4
