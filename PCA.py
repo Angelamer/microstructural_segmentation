@@ -20,7 +20,8 @@ from matplotlib.lines import Line2D
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from matplotlib.patches import Rectangle
 from skimage.metrics import structural_similarity as ssim
-
+from typing import Iterable, Optional, Tuple, List
+from matplotlib.gridspec import GridSpec
 
 
 def run_PCA(ROI,components,h,w,slice_x,slice_y):
@@ -670,3 +671,187 @@ def plot_pca_comparisons(compare_cache):
         )
         plt.tight_layout()
         plt.show()
+
+def _slice_shape(slice_x: Tuple[int, int], slice_y: Tuple[int, int]) -> Tuple[int, int]:
+    """Return (rows, cols) given (x,y) slice ranges (start, end)."""
+    sx = slice_x[1] - slice_x[0]
+    sy = slice_y[1] - slice_y[0]
+    if sx <= 0 or sy <= 0:
+        raise ValueError("slice_x and slice_y must satisfy end > start.")
+    return sy, sx
+
+
+def get_pca_components_reshaped(pca, slice_x: Tuple[int, int], slice_y: Tuple[int, int]) -> np.ndarray:
+    """Return PCA components reshaped to (n_components, len(slice_y), len(slice_x))."""
+    sy, sx = _slice_shape(slice_x, slice_y)
+    n_features_expected = sx * sy
+    comps = np.asarray(pca.components_)
+    if comps.shape[1] != n_features_expected:
+        raise ValueError(
+            f"Component features ({comps.shape[1]}) do not match slice size ({n_features_expected})."
+        )
+    return comps.reshape(comps.shape[0], sy, sx)
+
+
+def _normalize_pc_indices(
+    pcs: Optional[Iterable[int]], start: Optional[int], end: Optional[int], total: int
+) -> List[int]:
+    """Convert requested PC indices (1-based) to 0-based list."""
+    if pcs is not None:
+        zero_based = [int(i) - 1 for i in pcs]
+    elif start is not None and end is not None:
+        zero_based = list(range(start - 1, end))
+    else:
+        zero_based = list(range(total))
+
+    for i in zero_based:
+        if i < 0 or i >= total:
+            raise IndexError(f"PC index {i} out of range (valid: 1..{total})")
+    return zero_based
+
+
+def plot_pca_components_heatmaps(
+    pca,
+    slice_x: Tuple[int, int],
+    slice_y: Tuple[int, int],
+    pcs: Optional[Iterable[int]] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    cmap: str = "gray",
+    shared_scale: bool = True,
+    save: bool = False,
+    save_name: Optional[str] = None,
+    dpi: int = 300,
+    save_individual: bool = False,
+    save_dir: str = ".",
+) -> None:
+    """
+    Plot selected PCA components as grayscale heatmaps, horizontally aligned with a single colorbar.
+
+    Parameters
+    ----------
+    save : bool, default=False
+        Save the combined figure.
+    save_name : str, optional
+        Filename for the combined figure. Default "pca_components.png".
+    dpi : int, default=300
+        Resolution for saving.
+    save_individual : bool, default=False
+        If True, save each PC as an individual file (e.g., Component_PC1.png).
+    save_dir : str, default="."
+        Directory to save files (created if not exists).
+    """
+    comp_imgs = get_pca_components_reshaped(pca, slice_x, slice_y)
+    total = comp_imgs.shape[0]
+    idxs = _normalize_pc_indices(pcs, start, end, total)
+
+    if shared_scale:
+        vmin, vmax = np.min(comp_imgs[idxs]), np.max(comp_imgs[idxs])
+    else:
+        vmin = vmax = None
+
+    n = len(idxs)
+    fig, axes = plt.subplots(1, n, figsize=(2.5 * n + 0.8, 3), constrained_layout=True)
+    if n == 1:
+        axes = [axes]
+
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    for ax, i in zip(axes, idxs):
+        im = ax.imshow(comp_imgs[i], cmap=cmap, origin="lower", vmin=vmin, vmax=vmax)
+        ax.set_title(f"PC {i+1}")
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        if save_individual:
+            fname = os.path.join(save_dir, f"Component_PC{i+1}.png")
+            plt.imsave(fname, comp_imgs[i], cmap=cmap, vmin=vmin, vmax=vmax, dpi=dpi)
+            print(f"💾 Saved individual component: {fname}")
+
+    cbar = fig.colorbar(im, ax=axes, location="right", pad=0.02, fraction=0.046, shrink=0.98)
+    cbar.set_label("Component weight", rotation=270, labelpad=15)
+
+    if save:
+        if save_name is None:
+            save_name = "pca_components.png"
+        fname = os.path.join(save_dir, save_name)
+        fig.savefig(fname, dpi=dpi, bbox_inches="tight")
+        print(f"✅ Combined figure saved to {fname} (dpi={dpi})")
+
+    plt.show()
+
+
+def plot_pca_scores_maps(
+    scores: np.ndarray,
+    grid_shape: Tuple[int, int],
+    pcs: Optional[Iterable[int]] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    cmap: str = "rainbow",
+    shared_scale: bool = True,
+    save: bool = False,
+    save_name: Optional[str] = None,
+    dpi: int = 300,
+    save_individual: bool = False,
+    save_dir: str = ".",
+) -> None:
+    """
+    Plot selected PCA scores columns reshaped to (height, width) heatmaps.
+
+    Parameters
+    ----------
+    save : bool, default=False
+        Save the combined figure.
+    save_name : str, optional
+        Filename for the combined figure. Default "pca_scores.png".
+    dpi : int, default=300
+        Resolution for saving.
+    save_individual : bool, default=False
+        If True, save each PC score map separately (e.g., Score_PC1.png).
+    save_dir : str, default="."
+        Directory to save files (created if not exists).
+    """
+    h, w = grid_shape
+    n_samples, n_components = scores.shape
+    if h * w != n_samples:
+        raise ValueError(f"grid_shape {grid_shape} does not match n_samples={n_samples}")
+
+    idxs = _normalize_pc_indices(pcs, start, end, n_components)
+
+    if shared_scale:
+        vmin, vmax = np.min(scores[:, idxs]), np.max(scores[:, idxs])
+    else:
+        vmin = vmax = None
+
+    n = len(idxs)
+    fig, axes = plt.subplots(1, n, figsize=(2.5 * n + 0.8, 3), constrained_layout=True)
+    if n == 1:
+        axes = [axes]
+
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    for ax, i in zip(axes, idxs):
+        img = scores[:, i].reshape(h, w)
+        im = ax.imshow(img, cmap=cmap, origin="lower", vmin=vmin, vmax=vmax)
+        ax.set_title(f"PC {i+1}")
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        if save_individual:
+            fname = os.path.join(save_dir, f"Score_PC{i+1}.png")
+            plt.imsave(fname, img, cmap=cmap, vmin=vmin, vmax=vmax, dpi=dpi)
+            print(f"💾 Saved individual score map: {fname}")
+    
+    cbar = fig.colorbar(im, ax=axes, location="right", pad=0.02, fraction=0.046, shrink=0.98)
+    cbar.set_label("PCA scores", rotation=270, labelpad=15)
+
+    if save:
+        if save_name is None:
+            save_name = "pca_scores.png"
+        fname = os.path.join(save_dir, save_name)
+        fig.savefig(fname, dpi=dpi, bbox_inches="tight")
+        print(f"✅ Combined figure saved to {fname} (dpi={dpi})")
+
+    plt.show()
