@@ -6,6 +6,7 @@ Data processing function which uses Kikuchipy to process individual EBSPs
 Licensed under GNU GPL3, see license file LICENSE_GPL3.
 """
 import numpy as np
+import pandas as pd
 import kikuchipy as kp
 import cv2
 from sklearn.preprocessing import StandardScaler
@@ -105,9 +106,10 @@ def coord_phase_dict_from_dataframe(df):
     
     return phase_dict
 
-def get_processed_signals(ROI, h, w, slice_x, slice_y):
+def get_processed_signals(ROI, loc, h, w, slice_x, slice_y, save_path=None):
     """
-    Process a list of ROI images and return flattened, normalized signal arrays.
+    Process a list of ROI images and return flattened, normalized signal arrays with coordinates.
+    Optionally save the results to a CSV file.
 
     This function applies `signal_process` to each image in the ROI list, crops the images
     according to the specified slices, and reshapes the resulting signals into a 2D array
@@ -115,14 +117,18 @@ def get_processed_signals(ROI, h, w, slice_x, slice_y):
 
     Args:
         ROI (list of str): List of image file paths or ROI identifiers to process.
+        loc (list of tuples): List of (x, y) coordinates corresponding to each ROI image.
         h (int): Height of the input images.
         w (int): Width of the input images.
         slice_x (tuple of int): Start and end indices for the x-axis crop (slice_x_start, slice_x_end).
         slice_y (tuple of int): Start and end indices for the y-axis crop (slice_y_start, slice_y_end).
+        save_path (str, optional): Path to save the CSV file. If None, no file is saved.
 
     Returns:
-        signal_processed (np.ndarray): 2D array of shape (num_images, num_features), where each row
-        corresponds to a flattened, processed signal from an ROI image.
+        signal_df (pd.DataFrame): DataFrame with columns for x, y coordinates and signal features.
+        The DataFrame has the following structure:
+        - Columns: 'x', 'y', 'feature_0', 'feature_1', ..., 'feature_N'
+        - Each row corresponds to a processed image with its coordinates
 
     Notes:
         - Each image is first processed by `signal_process` with the provided crop and dimensions.
@@ -132,11 +138,32 @@ def get_processed_signals(ROI, h, w, slice_x, slice_y):
     """
     file_list = ROI
     signal_processed = []
+    
+    # Process each file
     for file in file_list: 
-        signal_processed.append(signal_process(file, flag="ROI", h=h, w=w, slice_x=slice_x, slice_y=slice_y))
-        signal_processed = np.array(signal_processed).reshape(len(file_list),-1) 
-        
-    return signal_processed
+        signal_processed.append(signal_process(file, flag="ROI", pattern_height=h, pattern_width=w, slice_x=slice_x, slice_y=slice_y))
+    
+    # Convert to numpy array and reshape
+    signal_processed = np.array(signal_processed).reshape(len(file_list), -1)
+    
+    # Extract coordinates from loc array
+    x_coords = [coord[0] for coord in loc]
+    y_coords = [coord[1] for coord in loc]
+    
+    # Create DataFrame
+    signal_df = pd.DataFrame(signal_processed)
+    signal_df.columns = [f'feature_{i}' for i in range(signal_processed.shape[1])]
+    
+    # Add coordinate columns
+    signal_df.insert(0, 'x', x_coords)
+    signal_df.insert(1, 'y', y_coords)
+    
+    # Save to CSV if path is provided
+    if save_path:
+        signal_df.to_csv(save_path, index=False)
+        print(f"Processed signals saved to: {save_path}")
+    
+    return signal_df
     
 def signal_process(temp, flag, pattern_height=239, pattern_width=239, 
                   slice_x=(45, 195), slice_y=(45, 195)):
