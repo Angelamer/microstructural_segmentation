@@ -28,7 +28,7 @@ from matplotlib.lines import Line2D
 from skimage.metrics import structural_similarity as ssim
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from scipy.interpolate import interp1d
-from scipy.signal import find_peaks, peak_prominences
+from scipy.signal import find_peaks, argrelextrema
 import math
 torch.manual_seed(42)
 np.random.seed(42)
@@ -1123,18 +1123,21 @@ def plot_weight_sum_histogram(weights, center=1.0, bins=50):
     plt.legend()
     plt.show()
 
-def get_intersection_points(weight_maps, y_indice, x_min, y_min, height, width):
+def get_intersection_points(weight_maps, y_indice, x_min, y_min, height, width, plot=True, feature_to_show=0):
     """
     Get intersection points for a specific y_index across multiple weight maps.
+    Returns actual data points near intersections instead of interpolated points.
     
     Parameters:
     - weight_maps: list of 2D arrays (height, width) representing weight maps
     - y_indice: the y index to analyze
     - x_min, y_min: coordinates of the top-left corner
     - height, width: dimensions of the weight maps
+    - plot: whether to create a plot
+    - feature_to_show: which feature to display in the weight map (default: 0)
     
     Returns:
-    - intersections: list of (x, y) coordinates where lines are closest to intersecting
+    - intersections: list of (x_abs, y_abs, feature_i, feature_j, point_type, x_rel, value_i, value_j) tuples
     - fig: the matplotlib figure object
     """
     n_features = len(weight_maps)
@@ -1145,14 +1148,30 @@ def get_intersection_points(weight_maps, y_indice, x_min, y_min, height, width):
     # Create x coordinates (relative)
     x_indices = np.arange(width)
     
-    # Create figure
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    # Plot the weight lines
-    colors = plt.cm.tab10(np.linspace(0, 1, n_features))
-    
-    for i, (data, color) in enumerate(zip(row_data, colors)):
-        ax.plot(x_indices, data, color=color, label=f'Weight {i+1}', linewidth=2)
+    # Create figure with two subplots
+    if plot:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        
+        # Left subplot: Weight map with highlighted row
+        # Use origin='upper' to have (0,0) at top-left
+        weight_map_img = ax1.imshow(weight_maps[feature_to_show], cmap='viridis', 
+                                   aspect='auto', origin='upper')
+        
+        # Add a horizontal line at the current y_indice
+        ax1.axhline(y=y_indice, color='red', linestyle='--', linewidth=2)
+        ax1.set_title(f'Weight Map (Feature {feature_to_show+1})\nHighlighted Row: {y_indice}')
+        ax1.set_xlabel('X Coordinate')
+        ax1.set_ylabel('Y Coordinate')
+        
+        # Add a colorbar for the weight map
+        plt.colorbar(weight_map_img, ax=ax1, label='Weight Value')
+        
+        # Right subplot: Weight curves
+        colors = plt.cm.tab10(np.linspace(0, 1, n_features))
+        for i, (data, color) in enumerate(zip(row_data, colors)):
+            ax2.plot(x_indices, data, 'o-', color=color, label=f'Weight {i+1}', linewidth=2, markersize=4)
+    else:
+        fig, ax1, ax2 = None, None, None
     
     # Find intersection points between pairs of lines
     intersections = []
@@ -1160,38 +1179,103 @@ def get_intersection_points(weight_maps, y_indice, x_min, y_min, height, width):
     # Check all pairs
     for i in range(n_features):
         for j in range(i+1, n_features):
-            # Find points where the difference is minimized
-            diff = np.abs(row_data[i] - row_data[j])
-            min_diff_idx = np.argmin(diff)
-            min_diff = diff[min_diff_idx]
+            # Calculate the difference between the two curves
+            diff = row_data[i] - row_data[j]
             
-            # Only consider if the difference is below a threshold
-            if min_diff < 0.1:  # Adjust threshold as needed
-                x_intersect = x_indices[min_diff_idx]
-                y_intersect = (row_data[i][min_diff_idx] + row_data[j][min_diff_idx]) / 2
+            # Find where the difference changes sign (potential intersections)
+            sign_changes = np.where(np.diff(np.sign(diff)))[0]
+            
+            # For each sign change, find the actual data points around the intersection
+            for idx in sign_changes:
+                if idx + 1 >= len(x_indices):
+                    continue
                 
-                # Convert to absolute coordinates
-                x_abs = x_min + x_intersect
-                y_abs = y_min + y_indice
+                # Get the actual data points around the intersection
+                points_before = []
+                points_after = []
                 
-                intersections.append((x_abs, y_abs, i, j, min_diff))
+                # Add points before the intersection (if available)
+                for k in range(max(0, idx-1), idx+1):
+                    x_abs = x_min + x_indices[k]
+                    y_abs = y_min + y_indice
+                    points_before.append((x_abs, y_abs, i, j, "before_intersection", x_indices[k], row_data[i][k], row_data[j][k]))
                 
-                # Mark the intersection point on the plot
-                ax.plot(x_intersect, y_intersect, 'o', markersize=8, 
-                        color='black', markeredgecolor='white', markeredgewidth=1)
-                ax.annotate(f'({x_abs}, {y_abs})', 
-                           (x_intersect, y_intersect),
-                           xytext=(5, 5), textcoords='offset points')
+                # Add points after the intersection (if available)
+                for k in range(idx+1, min(len(x_indices), idx+3)):
+                    x_abs = x_min + x_indices[k]
+                    y_abs = y_min + y_indice
+                    points_after.append((x_abs, y_abs, i, j, "after_intersection", x_indices[k], row_data[i][k], row_data[j][k]))
+                
+                # Determine which point is closer to the actual intersection
+                # We'll use the point with the smallest absolute difference between the two curves
+                all_points = points_before + points_after
+                if all_points:
+                    # Find the point with the smallest absolute difference
+                    min_diff_point = min(all_points, key=lambda p: abs(p[6] - p[7]))
+                    intersections.append(min_diff_point)
+                    
+                    if plot:
+                        # Mark all points_before in blue
+                        for point in points_before:
+                            ax2.plot(point[5], point[6], 'o', markersize=6, 
+                                    color='blue', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
+                            ax2.plot(point[5], point[7], 'o', markersize=6, 
+                                    color='blue', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
+                        
+                        # Mark all points_after in green
+                        for point in points_after:
+                            ax2.plot(point[5], point[6], 'o', markersize=6, 
+                                    color='green', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
+                            ax2.plot(point[5], point[7], 'o', markersize=6, 
+                                    color='green', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
+                        
+                        # Mark the closest point in red (larger marker)
+                        ax2.plot(min_diff_point[5], min_diff_point[6], 'o', markersize=10, 
+                                color='red', markeredgecolor='white', markeredgewidth=2)
+                        ax2.plot(min_diff_point[5], min_diff_point[7], 'o', markersize=10, 
+                                color='red', markeredgecolor='white', markeredgewidth=2)
+                        
+                        # Draw a vertical line to connect the two points at the closest intersection
+                        ax2.plot([min_diff_point[5], min_diff_point[5]], 
+                                [min_diff_point[6], min_diff_point[7]], 
+                                'r--', alpha=0.7, linewidth=2)
+                        
+                        # Add text annotation for the closest point - only show coordinates
+                        ax2.annotate(f'({min_diff_point[0]:.1f}, {min_diff_point[1]:.1f})', 
+                                   (min_diff_point[5], (min_diff_point[6] + min_diff_point[7])/2),
+                                   xytext=(10, 0), textcoords='offset points',
+                                   bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="red", alpha=0.7))
+                        
+                        # Also mark the points on the weight map
+                        for point in points_before:
+                            ax1.plot(point[5], y_indice, 'o', markersize=6, 
+                                    color='blue', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
+                        
+                        for point in points_after:
+                            ax1.plot(point[5], y_indice, 'o', markersize=6, 
+                                    color='green', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
+                        
+                        ax1.plot(min_diff_point[5], y_indice, 'o', markersize=10, 
+                                color='red', markeredgecolor='white', markeredgewidth=2)
     
-    ax.set_xlabel('X Relative Coordinate')
-    ax.set_ylabel('Weight Value')
-    ax.set_title(f'Weight Values at Y Relative Coordinate: {y_indice}')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.show()
-    
+    if plot:
+        # Add legend for the point types
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', markersize=8, label='Before Intersection'),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=8, label='After Intersection'),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='red', markersize=8, label='Closest Point')
+        ]
+        ax2.legend(handles=legend_elements, loc='best')
+        
+        ax2.set_xlabel('X Relative Coordinate')
+        ax2.set_ylabel('Weight Value')
+        ax2.set_title(f'Weight Values at Y Relative Coordinate: {y_indice}')
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+        
     return intersections, fig
 
 def get_weight_map(weights, loc, height, width):
@@ -1213,7 +1297,33 @@ def get_weight_map(weights, loc, height, width):
         weight_maps.append(weight_map)
     return weight_maps
 
-def find_all_intersections(weights, loc, height, width):
+def filter_intersections_by_type(intersections, curve_type=None, feature_i=None, feature_j=None):
+    """
+    Filter intersections by type and/or features.
+    
+    Parameters:
+    - intersections: list of intersection points
+    - curve_type: filter by curve type
+    - feature_i: filter by first feature index
+    - feature_j: filter by second feature index
+    
+    Returns:
+    - filtered_intersections: filtered list of intersection points
+    """
+    filtered = intersections
+    
+    if curve_type is not None:
+        filtered = [point for point in filtered if point[4] == curve_type]
+    
+    if feature_i is not None:
+        filtered = [point for point in filtered if point[2] == feature_i]
+    
+    if feature_j is not None:
+        filtered = [point for point in filtered if point[3] == feature_j]
+    
+    return filtered
+
+def find_all_intersections(weights, loc, height, width, plot=False, feature_to_show=0):
     """
     Find all intersection points across all y_indices.
     
@@ -1221,9 +1331,11 @@ def find_all_intersections(weights, loc, height, width):
     - weights: array of shape (n_sample, n_features) with weight values
     - loc: array of shape (n_sample, 2) with coordinates
     - height, width: dimensions to reshape the weights into
+    - plot: whether to create plots for each y_index
+    - feature_to_show: which feature to display in the weight map
     
     Returns:
-    - all_intersections: list of all intersection points (x, y, feature1, feature2, diff)
+    - all_intersections: list of all intersection points
     """
     weight_maps = get_weight_map(weights, loc, height, width)
     
@@ -1236,10 +1348,8 @@ def find_all_intersections(weights, loc, height, width):
     # Iterate over all y_indices
     for y_indice in range(height):
         intersections, _ = get_intersection_points(
-            weight_maps, y_indice, x_min, y_min, height, width
+            weight_maps, y_indice, x_min, y_min, height, width, plot, feature_to_show
         )
         all_intersections.extend(intersections)
     
     return all_intersections
-
-    
