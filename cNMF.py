@@ -29,9 +29,27 @@ from skimage.metrics import structural_similarity as ssim
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks, argrelextrema
+from matplotlib.lines import Line2D
 import math
+import random
 torch.manual_seed(42)
 np.random.seed(42)
+
+def set_global_determinism(seed: int = 42, use_cuda: bool = False):
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"  # for CUDA determinism (if on GPU)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # Force deterministic algorithms
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    # cuDNN switches
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # Keep single-thread to avoid nondeterminism from parallel reductions
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
 
 def constrained_nmf(X, components):
     input_H = [
@@ -235,43 +253,43 @@ def Metrics(X_reconstructed, input_X):
     return mse,r_square
 
 
-# def _plot_cnmf(weights, coord_dict, loc_roi):
+# # def _zf(weights, coord_dict, loc_roi):
     
-    weights = np.array(weights).squeeze(axis=1) 
-    loc_roi = np.asarray(loc_roi)
-    assert loc_roi.shape[0] == weights.shape[0], "make sure the number of samples/rows of pca scores the same with loc"
-    assert loc_roi.shape[1] == 2, "loc should be list of (n_samples, 2)"
+#     weights = np.array(weights).squeeze(axis=1) 
+#     loc_roi = np.asarray(loc_roi)
+#     assert loc_roi.shape[0] == weights.shape[0], "make sure the number of samples/rows of pca scores the same with loc"
+#     assert loc_roi.shape[1] == 2, "loc should be list of (n_samples, 2)"
     
-    roi_labels = [coord_dict.get((x, y), -1)
-    for x, y in loc_roi]
+#     roi_labels = [coord_dict.get((x, y), -1)
+#     for x, y in loc_roi]
     
-    roi_labels = np.array(roi_labels)
+#     roi_labels = np.array(roi_labels)
     
-    # corresponding phase mapping
-    name_map = {
-        1: 'Fe3O4',
-        2: 'FeO',
-        3: 'Fe'
-        }
+#     # corresponding phase mapping
+#     name_map = {
+#         1: 'Fe3O4',
+#         2: 'FeO',
+#         3: 'Fe'
+#         }
 
-    plt.figure(figsize=(10,8))
-    scatter = plt.scatter(weights[:, 0], weights[:, 1], c=roi_labels, cmap='Set1', alpha=0.7, edgecolors='k')
+#     plt.figure(figsize=(10,8))
+#     scatter = plt.scatter(weights[:, 0], weights[:, 1], c=roi_labels, cmap='Set1', alpha=0.7, edgecolors='k')
     
-    unique_ids = sorted(set(roi_labels.tolist()))
+#     unique_ids = sorted(set(roi_labels.tolist()))
     
-    # add legends
-    handles = []
-    for pid in unique_ids:
-        if pid in name_map:
-            color = scatter.cmap(scatter.norm(pid))
-            patch = mpatches.Patch(color=color, label=name_map[pid])
-            handles.append(patch)
-    plt.legend(handles=handles, title='Phase')
+#     # add legends
+#     handles = []
+#     for pid in unique_ids:
+#         if pid in name_map:
+#             color = scatter.cmap(scatter.norm(pid))
+#             patch = mpatches.Patch(color=color, label=name_map[pid])
+#             handles.append(patch)
+#     plt.legend(handles=handles, title='Phase')
     
-    plt.xlabel("cNMF Component 1")
-    plt.ylabel("cNMF Component 2")
-    plt.title("cNMF of EBSD Kikuchi Patterns by Phase index")
-    plt.show()
+#     plt.xlabel("cNMF Component 1")
+#     plt.ylabel("cNMF Component 2")
+#     plt.title("cNMF of EBSD Kikuchi Patterns by Phase index")
+#     plt.show()
     
 def _plot_reference(pos_list, loc_roi, ax, scores, marker, label):
         if pos_list is not None:
@@ -488,76 +506,140 @@ def _add_boxes(loc_roi, roi_height, roi_width, coords, ax, color, linewidth, hat
             ax.add_patch(rect)
     
     
-def plot_weight_map_cnmf(weights, loc_roi, anomalies_coords=None, ref1_pos=None, ref2_pos=None, component=0, boundary_locs=None):
-    """Plot the weight map with locations of references and anomalies"""
-    loc_roi = np.asarray(loc_roi)
-    # weights = np.array(weights).squeeze(axis=1) 
-    weight_map = np.reshape(weights, (31, 31, 2))
+# def plot_weight_map_cnmf(weights, loc_roi, anomalies_coords=None, ref1_pos=None, ref2_pos=None, component=0, boundary_locs=None):
+#     """Plot the weight map with locations of references and anomalies"""
+#     loc_roi = np.asarray(loc_roi)
+#     # weights = np.array(weights).squeeze(axis=1) 
+#     weight_map = np.reshape(weights, (31, 31, 2))
     
-    # Obtain the specific component of weight
-    data = np.transpose(weight_map[:, :, component])
+#     # Obtain the specific component of weight
+#     data = np.transpose(weight_map[:, :, component])
     
-    # colormap
-    colors = ["#2ca02c", "#ffffff", "#d62728"]  # green-white-red
+#     # colormap
+#     colors = ["#2ca02c", "#ffffff", "#d62728"]  # green-white-red
     
     
-    abs_max = np.max(np.abs(weights))
-    # mid point=0.5
-    norm = TwoSlopeNorm(vmin=0, vcenter=0.5, vmax=abs_max)
-    # norm = TwoSlopeNorm(vmin=-abs_max, vcenter=0, vmax=abs_max)
+#     abs_max = np.max(np.abs(weights))
+#     # mid point=0.5
+#     norm = TwoSlopeNorm(vmin=0, vcenter=0.5, vmax=abs_max)
+#     # norm = TwoSlopeNorm(vmin=-abs_max, vcenter=0, vmax=abs_max)
 
-    cmap_custom = LinearSegmentedColormap.from_list("custom_diverging", colors)
+#     cmap_custom = LinearSegmentedColormap.from_list("custom_diverging", colors)
     
-    plt.figure(figsize=(12, 10))
-    ax = plt.gca()
+#     plt.figure(figsize=(12, 10))
+#     ax = plt.gca()
     
-    im = ax.imshow(data, cmap=cmap_custom, norm=norm, interpolation='nearest')
+#     im = ax.imshow(data, cmap=cmap_custom, norm=norm, interpolation='nearest')
     
-    legend_elements = []
-    # denote the anomalies
-    if anomalies_coords is not None and len(anomalies_coords) > 0:
-        legend_elements.append(
-            Line2D([0], [0], color='black', lw=2, label='Anomalies')
-        )
-        _add_boxes(loc_roi, anomalies_coords, ax, 'black', 2)
+#     legend_elements = []
+#     # denote the anomalies
+#     if anomalies_coords is not None and len(anomalies_coords) > 0:
+#         legend_elements.append(
+#             Line2D([0], [0], color='black', lw=2, label='Anomalies')
+#         )
+#         _add_boxes(loc_roi, anomalies_coords, ax, 'black', 2)
     
-    # the reference points
-    if ref1_pos is not None and len(ref1_pos) > 0:
-        legend_elements.append(
-            Line2D([0], [0], color='red', lw=3, label='Reference 1')
-        )
-        _add_boxes(loc_roi, ref1_pos, ax,  'red', 3)
+#     # the reference points
+#     if ref1_pos is not None and len(ref1_pos) > 0:
+#         legend_elements.append(
+#             Line2D([0], [0], color='red', lw=3, label='Reference 1')
+#         )
+#         _add_boxes(loc_roi, ref1_pos, ax,  'red', 3)
     
-    if ref2_pos is not None and len(ref2_pos) > 0:
-        legend_elements.append(
-            Line2D([0], [0], color='blue', lw=3, label='Reference 2')
-        )
-        _add_boxes(loc_roi, ref2_pos, ax, 'blue', 3)  
-    if boundary_locs is not None and len(boundary_locs) > 0:
-        legend_elements.append(
-            Line2D([0], [0], color='black', lw=2, linestyle='dashed', label='Boundary Points')
-        )
-        _add_boxes(loc_roi, boundary_locs, ax, 'black', 2)    
-    if legend_elements:
-        ax.legend(handles=legend_elements, loc='lower center',  bbox_to_anchor=(0.5, -0.1), ncol=3)
+#     if ref2_pos is not None and len(ref2_pos) > 0:
+#         legend_elements.append(
+#             Line2D([0], [0], color='blue', lw=3, label='Reference 2')
+#         )
+#         _add_boxes(loc_roi, ref2_pos, ax, 'blue', 3)  
+#     if boundary_locs is not None and len(boundary_locs) > 0:
+#         legend_elements.append(
+#             Line2D([0], [0], color='black', lw=2, linestyle='dashed', label='Boundary Points')
+#         )
+#         _add_boxes(loc_roi, boundary_locs, ax, 'black', 2)    
+#     if legend_elements:
+#         ax.legend(handles=legend_elements, loc='lower center',  bbox_to_anchor=(0.5, -0.1), ncol=3)
     
-    # color bar setting
-    cbar = plt.colorbar(im)
-    cbar.set_ticks([0, 0.5, abs_max])
-    cbar.ax.set_yticklabels([
-        f'Component {component+1} = 0\n(green)', 
-        'Both= 0.5\n(white)', 
-        f'Component {2 if component==0 else 1} = {abs_max}\n(red)'
-    ], fontsize=10)
+#     # color bar setting
+#     cbar = plt.colorbar(im)
+#     cbar.set_ticks([0, 0.5, abs_max])
+#     cbar.ax.set_yticklabels([
+#         f'Component {component+1} = 0\n(green)', 
+#         'Both= 0.5\n(white)', 
+#         f'Component {2 if component==0 else 1} = {abs_max}\n(red)'
+#     ], fontsize=10)
 
-    plt.title(f"Component {component+1} Weight Map with Annotations")
-    plt.axis('off')
-    plt.tight_layout()
-    plt.show()
+#     plt.title(f"Component {component+1} Weight Map with Annotations")
+#     plt.axis('off')
+#     plt.tight_layout()
+#     plt.show()
+
+def detect_boundary_points(weights, loc, roi_height, roi_width, coord_to_label=None, normalize=False):
+    """
+    Detect boundary points based on label differences in 4-neighborhood.
     
+    Args:
+        weights: np.ndarray of shape (N, K) - component weights
+        loc: np.ndarray of shape (N, 2) - integer coordinates
+        roi_height, roi_width: int - dimensions of the ROI
+        coord_to_label: dict or None - optional mapping from (x,y) to label_id (overrides argmax)
+        normalize: bool - whether to normalize weights per row
+        
+    Returns:
+        dict: {
+            'boundary_locs': list of (x,y) coordinates of boundary points,
+            'pred_loc2label': dict mapping (x,y) to predicted label_id,
+            'loc2idx': dict mapping (x,y) to row index in weights
+        }
+    """
+    # Basic checks
+    weights = np.asarray(weights, float)
+    loc = np.asarray(loc)
+    N, K = weights.shape
+    
+    if loc.shape != (N, 2):
+        raise ValueError("loc must have shape (N, 2).")
+    if N != roi_height * roi_width:
+        raise ValueError(f"N must equal roi_height*roi_width ({roi_height*roi_width}).")
+    
+    # Normalize if requested
+    if normalize:
+        sums = weights.sum(axis=1, keepdims=True)
+        sums[sums == 0.0] = 1.0
+        weights = weights / sums
+    
+    # Create coordinate to index mapping
+    loc2idx = {tuple(map(int, loc[i])): i for i in range(N)}
+    
+    # Determine labels: coord_to_label overrides argmax
+    argmax_labels = np.argmax(weights, axis=1)  # (N,)
+    pred_loc2label = {}
+    
+    for xy, i in loc2idx.items():
+        if coord_to_label is not None and xy in coord_to_label:
+            pred_loc2label[xy] = int(coord_to_label[xy])
+        else:
+            pred_loc2label[xy] = int(argmax_labels[i])
+    
+    # Detect boundary points using 4-neighborhood
+    boundary_set = set()
+    for (x, y), lab in pred_loc2label.items():
+        # Check 4-neighbors (left, right, up, down)
+        for nb in ((x-1, y), (x+1, y), (x, y-1), (x, y+1)):
+            if nb in pred_loc2label and pred_loc2label[nb] != lab:
+                boundary_set.add((x, y))
+                break
+    
+    # Convert to sorted list for consistent ordering
+    boundary_locs = sorted(boundary_set, key=lambda t: (t[1], t[0]))
+    
+    return {
+        'boundary_locs': boundary_locs,
+        'pred_loc2label': pred_loc2label,
+        'loc2idx': loc2idx
+    }
     
 def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, roi_height, roi_width, anomalies_dict=None, ref_pos_list=None,   # list of arrays/lists; each inner is shape (M_i, 2) coords
-                                    component=0, boundary_locs=None):
+                                    component=0, boundary_locs=None, normalize=False, figsize=(12, 10)):
     """
     Plot a single cNMF component weight map (2D), with overlays:
       - anomalies (colored by label),
@@ -611,12 +693,33 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, roi_height, roi_width,
     if loc_roi.shape != (N, 2):
         raise ValueError("loc_roi must be (N, 2).")
     
+    # Normalize if requested
+    if normalize:
+        sums = weights.sum(axis=1, keepdims=True)
+        sums[sums == 0.0] = 1.0
+        weights = weights / sums
+    
+    # Create coordinate to index mapping
+    loc2idx = {tuple(map(int, loc_roi[i])): i for i in range(N)}
+
     # weight_map_3d: (roi_height, roi_width, K)
     weight_map = weights.reshape(roi_height, roi_width, K)
     
     # Obtain the specific component of weight
     data = weight_map[:, :, component]
     
+    # Calculate vcenter based on boundary points
+    if boundary_locs is not None and len(boundary_locs) > 0:
+        max_vals_on_boundary = []
+        for xy in boundary_locs:
+            xy_int = tuple(map(int, xy))
+            idx = loc2idx.get(xy_int, None)
+            if idx is not None:
+                max_vals_on_boundary.append(float(np.max(weights[idx])))
+        vcenter = float(np.mean(max_vals_on_boundary)) if len(max_vals_on_boundary) > 0 else 0.5
+    else:
+        vcenter = 0.5
+
     # Create colormap (green-white-red)
     colors = ["#2ca02c", "#ffffff", "#d62728"]
     
@@ -624,14 +727,17 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, roi_height, roi_width,
     
     # Safer vmax: the 95th percentile of the chosen component (avoid outliers)
     comp_vals = data.ravel()
-    vmax = float(np.nanpercentile(comp_vals, 95))
-    vmax = max(vmax, 1e-6)  # avoid zero
+    if np.isfinite(comp_vals).any():
+        vmax = float(np.nanpercentile(comp_vals, 95))
+    else:
+        vmax = 1.0
     # With this:
-    norm = TwoSlopeNorm(vmin=0.0, vcenter=0.5, vmax=vmax)
+    vmax = max(vcenter + 1e-6, vmax)
+    norm = TwoSlopeNorm(vmin=0.0, vcenter=vcenter, vmax=vmax)
 
     
    # ---- plot base map ----
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=figsize)
     im = ax.imshow(data, cmap=cmap_custom, norm=norm, interpolation='nearest', origin='upper')
 
     legend_elements = []
@@ -644,7 +750,7 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, roi_height, roi_width,
             label_coords = [coord for coord, lbl in anomalies_dict.items() if lbl == label]
             color = color_map(label)  # Use label for color index
             _add_boxes(loc_roi, roi_height, roi_width, label_coords, ax, color, 2, hatch='////', alpha=0.8)
-    
+            legend_elements.append(Line2D([0],[0], color=color, lw=2, label=f"Anomaly {label}"))
     
     # ---- references: any number of sets ----
     # give each set a distinct marker/color
@@ -679,13 +785,13 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, roi_height, roi_width,
     if legend_elements:
         ax.legend(handles=legend_elements, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=3)
     
-    # Color bar settings
-    cbar = plt.colorbar(im)
-    cbar.set_ticks([0, 0.5, vmax])
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_ticks([0.0, vcenter, vmax])
     cbar.set_ticklabels([
-        f'0.0 (green)',
-        '0.5 (white)',
-        f'{vmax:.2f} (red)'
+        f"0.0 (green)",
+        f"{vcenter:.3f} (white @ boundary mean max)",
+        f"{vmax:.3f} (red)"
     ])
     plt.title(f"Component {component+1} Weight Map with Annotations")
     plt.axis('off')
@@ -723,190 +829,475 @@ def plot_weight_map_cnmf_with_anomalies(weights, loc_roi, roi_height, roi_width,
         print(f"  Overlap Coefficient: {overlap_coefficient:.4f}")
     
     return jaccard_index, overlap_coefficient
-
-def analyze_classify_boundary_and_plot(
-    weights: np.ndarray,
-    loc: np.ndarray,                                  # (N,2) integer coordinates
-    coor_phase_dict: dict,                            # {(x,y): phase_id}  -- “ground truth” for eval
-    phase_labels: dict,                               # {phase_id: phase_name}
-    cluster_name_map: dict,                           # {cluster_or_label_id: phase_name}
-    roi_height: int,
-    roi_width: int,
-    *,
-    component: int = 0,
-    anomalies_dict: dict | None = None,               # {(x,y): label}
-    ref_pos_list: list | None = None,                 # [array_like(M_i,2), ...]
-    coord_to_label: dict | None = None,               # NEW: {(x,y) -> label_id}, overrides argmax(labels)
-    figsize=(12, 10),
-    normalize: bool = False
+def plot_cnmf_weights_projected(
+    weights,                 # (N, K)
+    loc,                     # (N, 2) coordinates (x,y)
+    cluster_labels=None,     # (N,) or None
+    comps=(0, 1),            # tuple of component indices to plot (len=2 or 3)
+    mode="2d",               # "2d" or "3d"
+    # --- boundary points are now provided explicitly ---
+    boundary_locs=None,      # list/array of (x,y); these will be marked as boundary points
+    ref_pos_list=None,       # list/dict of reference coords; see docstring
+    anomalies_dict=None,     # {(x,y): cluster_label_or_tag, ...}
+    title="cNMF weights (projected)",
+    ellipse_alpha=0.25,
+    xlim=None, ylim=None, zlim=None, normalize=True
 ):
     """
-    One-stop routine:
-      1) Build a (x,y)->label_id map for all samples:
-         - If coord_to_label is provided, use it (and fall back to argmax only for missing coords).
-         - Else, use argmax(weights).
-      2) Evaluate against coor_phase_dict on overlapping coordinates.
-      3) Detect boundary points (4-neighborhood) using the final label map.
-      4) Plot a single component's weight map (heatmap) with overlays; the "white"
-         level is centered at the mean of max(weights[row]) over boundary pixels
-         (falls back to 0.5 if no boundary).
+    Plot cNMF weights in a chosen 2D/3D subspace. Boundary points are NOT inferred;
+    they are provided by `boundary_locs` and mapped to indices via `loc`.
+
+    Args
+    ----
+    weights : (N, K) array
+        cNMF weights (often nonnegative, rows may sum to 1).
+    loc : (N, 2) array
+        Sample coordinates (x,y). Used to match boundary/reference/anomaly inputs.
+    cluster_labels : (N,) array or None
+        Optional cluster id per sample for coloring.
+    comps : tuple[int]
+        Component indices to project. Length 2 (2D) or 3 (3D).
+    mode : {"2d", "3d"}
+        Plotting mode.
+    boundary_locs : list/array[(x,y)] or None
+        Coordinates to be marked as boundary points (no automatic detection).
+    ref_pos_list : list[list[(x,y)]] or dict[int -> list[(x,y)]] or None
+        References per component (only those in `comps` are plotted).
+    anomalies_dict : dict or None
+        {(x,y): label} to mark specific samples with a distinct marker.
+    title : str
+        Plot title.
+    ellipse_alpha : float
+        Transparency for 2D confidence ellipses (per cluster).
+    xlim, ylim, zlim : tuple or None
+        Axis limits.
+    normalize : bool
+        If True, row-normalize weights so rows sum to 1 for display.
+
+    Returns
+    -------
+    out : dict
+        {
+          "mask_boundary": (N,) bool mask corresponding to `boundary_locs`,
+          "proj": (N, m) projected weights (m = len(comps)),
+          "boundary_points": projected coords of boundary points,
+          "boundary_indices": indices of boundary points,
+          "boundary_dict": { (x,y) -> cluster_label }  # if cluster_labels provided
+          "regression_2d": {"slope": float, "intercept": float} or None,
+        }
     """
-    # -------- basic checks --------
-    weights = np.asarray(weights, float)
+    weights = np.asarray(weights, dtype=float)
     loc = np.asarray(loc)
     N, K = weights.shape
-    if loc.shape != (N, 2):
-        raise ValueError("loc must have shape (N, 2).")
-    if N != roi_height * roi_width:
-        raise ValueError(f"N must equal roi_height*roi_width ({roi_height*roi_width}).")
-    if not (0 <= component < K):
-        raise ValueError(f"component={component} out of range [0,{K-1}].")
+    comps = tuple(comps)
+    assert len(comps) in (2, 3), "comps must have length 2 (2D) or 3 (3D)."
+    assert all(0 <= c < K for c in comps), "comps indices out of range."
+    assert loc.shape[0] == N, "loc and weights must have same number of rows."
 
-    # (x,y) -> row idx
-    loc2idx = {tuple(map(int, loc[i])): i for i in range(N)}
+    m = len(comps)
 
-    # ---------- normalize per-row (optional) ----------
+    # ---- Normalize per row so sum=1 (robust to zero rows) ----
     if normalize:
         sums = weights.sum(axis=1, keepdims=True)
         sums[sums == 0.0] = 1.0
-        weights = weights / sums
+        Wnorm = weights / sums  # (N, K)
+    else:
+        Wnorm = weights
 
-    # ---------- labels: coord_to_label overrides argmax ----------
-    argmax_labels = np.argmax(weights, axis=1)  # (N,)
-    pred_loc2label = {}
-    for xy, i in loc2idx.items():
-        if coord_to_label is not None and xy in coord_to_label:
-            pred_loc2label[xy] = int(coord_to_label[xy])
+    Wplot = Wnorm[:, comps]  # projected onto selected components
+
+    # ----- boundary mask from boundary_locs (explicit input) -----
+    def _coords_to_indices(coords_2d):
+        """Map a list/array of (x,y) coords to row indices in `loc`."""
+        if coords_2d is None:
+            return np.array([], dtype=int)
+        arr = np.asarray(coords_2d)
+        if arr.ndim != 2 or arr.shape[1] != 2 or arr.size == 0:
+            return np.array([], dtype=int)
+        idxs = []
+        for pos in arr:
+            ix = np.where((loc == pos).all(axis=1))[0]
+            if ix.size > 0:
+                idxs.append(ix[0])
+        return np.asarray(idxs, dtype=int) if idxs else np.array([], dtype=int)
+
+    boundary_idx = _coords_to_indices(boundary_locs)
+    mask_boundary = np.zeros(N, dtype=bool)
+    if boundary_idx.size > 0:
+        mask_boundary[boundary_idx] = True
+
+    # ----- helpers for references/anomalies -----
+    def _get_ref_coords_for_comp(comp_idx):
+        if ref_pos_list is None:
+            return None
+        if isinstance(ref_pos_list, dict):
+            coords = ref_pos_list.get(comp_idx, None)
         else:
-            pred_loc2label[xy] = int(argmax_labels[i])
+            coords = ref_pos_list[comp_idx] if (isinstance(ref_pos_list, (list, tuple)) and comp_idx < len(ref_pos_list)) else None
+        if coords is None:
+            return None
+        arr = np.asarray(coords)
+        if arr.ndim != 2 or arr.shape[1] != 2 or arr.size == 0:
+            return None
+        # keep dtype consistent with loc for exact equality
+        if np.issubdtype(loc.dtype, np.integer):
+            arr = arr.astype(int, copy=False)
+        return arr
 
-    # ---------- evaluation vs ground truth (overlapping coords) ----------
-    common_coords = [xy for xy in pred_loc2label.keys() if xy in coor_phase_dict]
-    if len(common_coords) == 0:
-        acc = np.nan
-        cm_df = pd.DataFrame()
-        cls_report = "No overlapping coordinates to evaluate."
-    else:
-        y_true_names = [str(phase_labels.get(coor_phase_dict[xy], "Unknown")) for xy in common_coords]
-        y_pred_names = [str(cluster_name_map.get(pred_loc2label[xy], f"cluster_{pred_loc2label[xy]}"))
-                        for xy in common_coords]
-        acc = accuracy_score(y_true_names, y_pred_names)
-        labels_sorted = sorted(set(y_true_names) | set(y_pred_names))
-        cm = confusion_matrix(y_true_names, y_pred_names, labels=labels_sorted)
-        cm_df = pd.DataFrame(cm,
-                             index=pd.Index(labels_sorted, name="True"),
-                             columns=pd.Index(labels_sorted, name="Pred"))
-        cls_report = classification_report(y_true_names, y_pred_names,
-                                           labels=labels_sorted, zero_division=0)
+    def _coords_to_indices_any(coords_2d):
+        return _coords_to_indices(coords_2d)
 
-    # ---------- boundary via 4-neighborhood on *final* labels ----------
-    boundary_set = set()
-    for (x, y), lab in pred_loc2label.items():
-        # 4-neighbors (left, right, up, down)
-        for nb in ((x-1, y), (x+1, y), (x, y-1), (x, y+1)):
-            if nb in pred_loc2label and pred_loc2label[nb] != lab:
-                boundary_set.add((x, y))
-                break
-    # (optional) consistent order for plotting
-    boundary_locs = sorted(boundary_set, key=lambda t: (t[1], t[0]))
+    # ----- cluster colors -----
+    if cluster_labels is None:
+        cluster_labels = np.zeros(N, dtype=int)
+    cluster_labels = np.asarray(cluster_labels)
+    uniq = np.unique(cluster_labels)
+    num_clusters = len(uniq)
+    palette = [cm.get_cmap(name)(0.65) for name in
+               ['Blues','Greens','Reds','Purples','Oranges','YlOrBr',
+                'BuGn','PuRd','Greys','PuBu','YlGn','GnBu']][:num_clusters]
+    color_map = {lab: palette[i % len(palette)] for i, lab in enumerate(uniq)}
 
-    # ---------- plotting: component weight heatmap ----------
-    weight_map = weights.reshape(roi_height, roi_width, K)
-    data = weight_map[:, :, component]
+    # ----- plotting -----
+    if mode.lower() == "2d":
+        fig, ax = plt.subplots(figsize=(10, 7))
 
-    # center white at mean of max(weights[row]) restricted to boundary pixels
-    if len(boundary_locs) > 0:
-        max_vals_on_boundary = []
-        for xy in boundary_locs:
-            idx = loc2idx.get(xy, None)
-            if idx is not None:
-                max_vals_on_boundary.append(float(np.max(weights[idx])))
-        vcenter = float(np.mean(max_vals_on_boundary)) if len(max_vals_on_boundary) > 0 else 0.5
-    else:
-        vcenter = 0.5
+        # main scatter by cluster
+        for lab in uniq:
+            # non-boundary first
+            msk = (cluster_labels == lab) & (~mask_boundary)
+            if np.any(msk):
+                ax.scatter(Wplot[msk, 0], Wplot[msk, 1],
+                           s=30, alpha=0.75, edgecolors='k', linewidths=0.5,
+                           c=[color_map[lab]], label=f"Cluster {lab}")
+            # optional ellipse per cluster
+            _add_confidence_ellipse(ax, Wplot[cluster_labels == lab, :2], color_map[lab], alpha=ellipse_alpha)
 
-    # green—white—red with white at vcenter
-    colors = ["#2ca02c", "#ffffff", "#d62728"]
-    cmap_custom = LinearSegmentedColormap.from_list("custom_diverging", colors)
+        # boundary points (from input)
+        if np.any(mask_boundary):
+            ax.scatter(Wplot[mask_boundary, 0], Wplot[mask_boundary, 1],
+                       s=35, marker="x", c="k", linewidths=1.1, alpha=0.9,
+                       label="Boundary (given)")
 
-    comp_vals = data.ravel()
-    if np.isfinite(comp_vals).any():
-        vmax = float(np.nanpercentile(comp_vals, 95))
-    else:
-        vmax = 1.0
-    vmax = max(vcenter + 1e-6, vmax)  # ensure vmax > vcenter
-    norm = TwoSlopeNorm(vmin=0.0, vcenter=vcenter, vmax=vmax)
+        # simplex edge X + Y = 1
+        xmin = 0.0 if xlim is None else xlim[0]
+        xmax = 1.0 if xlim is None else xlim[1]
+        x_line = np.linspace(xmin, xmax, 400)
+        y_simplex = 1.0 - x_line
+        ax.plot(x_line, y_simplex, 'r-', lw=1.6, alpha=0.9, label="X+Y=1")
 
-    fig, ax = plt.subplots(figsize=figsize)
-    im = ax.imshow(data, cmap=cmap_custom, norm=norm,
-                   interpolation='nearest', origin='upper')
+        # regression (Y ~ X) on all projected points
+        reg = LinearRegression().fit(Wplot[:, [0]], Wplot[:, 1])
+        y_reg = reg.predict(x_line.reshape(-1, 1))
+        ax.plot(x_line, y_reg, 'b--', lw=1.4, alpha=0.8, label="Linear fit")
 
-    legend_elements = []
-
-    # anomalies (group by label)
-    if anomalies_dict:
-        unique_labels = sorted(set(anomalies_dict.values()))
-        color_map = plt.cm.get_cmap('tab10', len(unique_labels))
-        for idx_c, lab in enumerate(unique_labels):
-            coords = [xy for xy, L in anomalies_dict.items() if L == lab]
-            _add_boxes(loc, roi_height, roi_width, coords, ax,
-                       color=color_map(idx_c), linewidth=2, hatch='////', alpha=0.85)
-            legend_elements.append(Line2D([0],[0], color=color_map(idx_c), lw=2, label=f"Anomaly {lab}"))
-
-    # reference sets (any number)
-    if ref_pos_list:
-        ref_colors = plt.cm.Set2(np.linspace(0, 1, min(10, len(ref_pos_list))))
-        ref_markers = ['*', 'P', 'X', 'D', '^', 's', 'o', 'v', '<', '>']
-        for i_set, ref_set in enumerate(ref_pos_list):
-            if ref_set is None or len(ref_set) == 0:
+        # references for selected comps
+        ref_markers = ['*', 'P', 'X', 'D', '^', 's']
+        for j, comp_idx in enumerate(comps):
+            coords = _get_ref_coords_for_comp(comp_idx)
+            if coords is None:
                 continue
-            ref_arr = np.asarray(ref_set)
-            if ref_arr.ndim != 2 or ref_arr.shape[1] != 2:
-                raise ValueError(f"ref_pos_list[{i_set}] must be array-like of shape (M,2).")
-            _add_boxes(loc, roi_height, roi_width, ref_arr, ax,
-                       color=ref_colors[i_set % len(ref_colors)], linewidth=3, hatch=None, alpha=1.0)
-            legend_elements.append(
-                Line2D([0],[0], marker=ref_markers[i_set % len(ref_markers)],
-                       color=ref_colors[i_set % len(ref_colors)], markerfacecolor='none',
-                       markeredgecolor=ref_colors[i_set % len(ref_colors)], lw=0,
-                       label=f"Reference {i_set+1}")
-            )
+            idxs = _coords_to_indices_any(coords)
+            if idxs.size == 0:
+                continue
+            ax.scatter(Wplot[idxs, 0], Wplot[idxs, 1],
+                       s=200, marker=ref_markers[j % len(ref_markers)],
+                       facecolor='yellow', edgecolor='k', linewidth=1.2,
+                       label=f"Ref (comp {comp_idx})", zorder=10)
 
-    # boundaries (black boxes)
-    if len(boundary_locs) > 0:
-        _add_boxes(loc, roi_height, roi_width, boundary_locs, ax,
-                   color='black', linewidth=2, hatch=None, alpha=1.0)
-        legend_elements.append(Line2D([0],[0], color='black', lw=2, label='Boundary'))
+        # anomalies
+        if anomalies_dict:
+            an_xy = list(anomalies_dict.items())  # [((x,y), lbl), ...]
+            a_idx, a_lab = [], []
+            for (xy, lab) in an_xy:
+                ix = np.where((loc == xy).all(axis=1))[0]
+                if ix.size > 0:
+                    a_idx.append(ix[0]); a_lab.append(lab)
+            if a_idx:
+                a_idx = np.asarray(a_idx, int); a_lab = np.asarray(a_lab, object)
+                for lab in np.unique(a_lab):
+                    msk = (a_lab == lab)
+                    ax.scatter(Wplot[a_idx[msk], 0], Wplot[a_idx[msk], 1],
+                               marker='^', s=70, facecolor='none', edgecolor='black',
+                               linewidth=1.2, label=f"Anomaly: {lab}", zorder=9)
 
-    # legend
-    if legend_elements:
-        ax.legend(handles=legend_elements, loc='lower center',
-                  bbox_to_anchor=(0.5, -0.08), ncol=3)
+        ax.set_xlabel(f"Weight[{comps[0]}]")
+        ax.set_ylabel(f"Weight[{comps[1]}]")
+        ax.set_title(title)
+        if xlim: ax.set_xlim(*xlim)
+        if ylim: ax.set_ylim(*ylim)
+        ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+        plt.tight_layout()
+        plt.show()
 
-    # colorbar
-    cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_ticks([0.0, vcenter, vmax])
-    cbar.set_ticklabels([f"0.0 (green)",
-                         f"{vcenter:.3f} (white @ boundary mean max)",
-                         f"{vmax:.3f} (red)"])
+        reg_info = {"slope": float(reg.coef_[0]), "intercept": float(reg.intercept_)}
 
-    ax.set_title(f"Component {component+1} Weight Map (labels/boundary from coord_to_label if provided)")
-    ax.set_axis_off()
-    plt.tight_layout()
-    plt.show()
+    elif mode.lower() == "3d":
+        assert len(comps) == 3, "For 3D mode, comps must have length 3."
+        fig = plt.figure(figsize=(10, 7))
+        ax = fig.add_subplot(111, projection='3d')
 
-    metrics = {
-        "accuracy": float(acc) if acc == acc else np.nan,
-        "confusion_matrix": cm_df,
-        "classification_report": cls_report
+        for lab in uniq:
+            msk = (cluster_labels == lab) & (~mask_boundary)
+            if np.any(msk):
+                ax.scatter(Wplot[msk, 0], Wplot[msk, 1], Wplot[msk, 2],
+                           s=20, alpha=0.8, c=[color_map[lab]], label=f"Cluster {lab}")
+
+        if np.any(mask_boundary):
+            ax.scatter(Wplot[mask_boundary, 0], Wplot[mask_boundary, 1], Wplot[mask_boundary, 2],
+                       s=30, marker="x", c="k", alpha=0.9, label="Boundary (given)")
+
+        # simplex plane w_i + w_j + w_k = 1
+        g = np.linspace(0, 1, 30)
+        X, Y = np.meshgrid(g, g)
+        Z = 1.0 - X - Y
+        Zmask = Z >= 0
+        ax.plot_surface(np.where(Zmask, X, np.nan),
+                        np.where(Zmask, Y, np.nan),
+                        np.where(Zmask, Z, np.nan),
+                        color='r', alpha=0.15, linewidth=0, antialiased=False)
+
+        # references
+        ref_markers = ['*', 'P', 'X', 'D', '^', 's']
+        for j, comp_idx in enumerate(comps):
+            coords = _get_ref_coords_for_comp(comp_idx)
+            if coords is None:
+                continue
+            idxs = _coords_to_indices_any(coords)
+            if idxs.size == 0:
+                continue
+            ax.scatter(Wplot[idxs, 0], Wplot[idxs, 1], Wplot[idxs, 2],
+                       s=120, marker=ref_markers[j % len(ref_markers)],
+                       facecolor='yellow', edgecolor='k', linewidth=1.1,
+                       label=f"Ref (comp {comp_idx})", zorder=10)
+
+        # anomalies
+        if anomalies_dict:
+            an_xy = list(anomalies_dict.items())
+            a_idx, a_lab = [], []
+            for (xy, lab) in an_xy:
+                ix = np.where((loc == xy).all(axis=1))[0]
+                if ix.size > 0:
+                    a_idx.append(ix[0]); a_lab.append(lab)
+            if a_idx:
+                a_idx = np.asarray(a_idx, int); a_lab = np.asarray(a_lab, object)
+                for lab in np.unique(a_lab):
+                    msk = (a_lab == lab)
+                    ax.scatter(Wplot[a_idx[msk], 0], Wplot[a_idx[msk], 1], Wplot[a_idx[msk], 2],
+                               marker='^', s=60, facecolor='none', edgecolor='black',
+                               linewidth=1.2, label=f"Anomaly: {lab}", zorder=9)
+
+        ax.set_xlabel(f"Weight[{comps[0]}]")
+        ax.set_ylabel(f"Weight[{comps[1]}]")
+        ax.set_zlabel(f"Weight[{comps[2]}]")
+        ax.set_title(title)
+        if xlim: ax.set_xlim(*xlim)
+        if ylim: ax.set_ylim(*ylim)
+        if zlim: ax.set_zlim(*zlim)
+        ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+        plt.tight_layout()
+        plt.show()
+
+        reg_info = None
+    else:
+        raise ValueError("mode must be '2d' or '3d'.")
+
+    out = {
+        "mask_boundary": mask_boundary,
+        "proj": Wplot,
+        "boundary_points": Wplot[mask_boundary],
+        "boundary_indices": np.where(mask_boundary)[0],
+        "boundary_dict": {
+            tuple(loc[i]): int(cluster_labels[i]) if cluster_labels is not None else None
+            for i in np.where(mask_boundary)[0]
+        },
+        "regression_2d": reg_info if mode.lower() == "2d" else None,
     }
-    # boundary_locs as dict {coord -> label_id}
-    boundary_dict = {xy: pred_loc2label[xy] for xy in boundary_locs}
-    return {
-        "pred_loc2label": pred_loc2label,
-        "metrics": metrics,
-        "boundary_dict": boundary_dict
-    }
+    return out
+
+# def analyze_classify_boundary_and_plot(
+#     weights: np.ndarray,
+#     loc: np.ndarray,                                  # (N,2) integer coordinates
+#     coor_phase_dict: dict,                            # {(x,y): phase_id}  -- “ground truth” for eval
+#     phase_labels: dict,                               # {phase_id: phase_name}
+#     cluster_name_map: dict,                           # {cluster_or_label_id: phase_name}
+#     roi_height: int,
+#     roi_width: int,
+#     *,
+#     component: int = 0,
+#     anomalies_dict: dict | None = None,               # {(x,y): label}
+#     ref_pos_list: list | None = None,                 # [array_like(M_i,2), ...]
+#     coord_to_label: dict | None = None,               # NEW: {(x,y) -> label_id}, overrides argmax(labels)
+#     figsize=(12, 10),
+#     normalize: bool = False
+# ):
+#     """
+#     One-stop routine:
+#       1) Build a (x,y)->label_id map for all samples:
+#          - If coord_to_label is provided, use it (and fall back to argmax only for missing coords).
+#          - Else, use argmax(weights).
+#       2) Evaluate against coor_phase_dict on overlapping coordinates.
+#       3) Detect boundary points (4-neighborhood) using the final label map.
+#       4) Plot a single component's weight map (heatmap) with overlays; the "white"
+#          level is centered at the mean of max(weights[row]) over boundary pixels
+#          (falls back to 0.5 if no boundary).
+#     """
+#     # -------- basic checks --------
+#     weights = np.asarray(weights, float)
+#     loc = np.asarray(loc)
+#     N, K = weights.shape
+#     if loc.shape != (N, 2):
+#         raise ValueError("loc must have shape (N, 2).")
+#     if N != roi_height * roi_width:
+#         raise ValueError(f"N must equal roi_height*roi_width ({roi_height*roi_width}).")
+#     if not (0 <= component < K):
+#         raise ValueError(f"component={component} out of range [0,{K-1}].")
+
+#     # (x,y) -> row idx
+#     loc2idx = {tuple(map(int, loc[i])): i for i in range(N)}
+
+#     # ---------- normalize per-row (optional) ----------
+#     if normalize:
+#         sums = weights.sum(axis=1, keepdims=True)
+#         sums[sums == 0.0] = 1.0
+#         weights = weights / sums
+
+#     # ---------- labels: coord_to_label overrides argmax ----------
+#     argmax_labels = np.argmax(weights, axis=1)  # (N,)
+#     pred_loc2label = {}
+#     for xy, i in loc2idx.items():
+#         if coord_to_label is not None and xy in coord_to_label:
+#             pred_loc2label[xy] = int(coord_to_label[xy])
+#         else:
+#             pred_loc2label[xy] = int(argmax_labels[i])
+
+#     # ---------- evaluation vs ground truth (overlapping coords) ----------
+#     common_coords = [xy for xy in pred_loc2label.keys() if xy in coor_phase_dict]
+#     if len(common_coords) == 0:
+#         acc = np.nan
+#         cm_df = pd.DataFrame()
+#         cls_report = "No overlapping coordinates to evaluate."
+#     else:
+#         y_true_names = [str(phase_labels.get(coor_phase_dict[xy], "Unknown")) for xy in common_coords]
+#         y_pred_names = [str(cluster_name_map.get(pred_loc2label[xy], f"cluster_{pred_loc2label[xy]}"))
+#                         for xy in common_coords]
+#         acc = accuracy_score(y_true_names, y_pred_names)
+#         labels_sorted = sorted(set(y_true_names) | set(y_pred_names))
+#         cm = confusion_matrix(y_true_names, y_pred_names, labels=labels_sorted)
+#         cm_df = pd.DataFrame(cm,
+#                              index=pd.Index(labels_sorted, name="True"),
+#                              columns=pd.Index(labels_sorted, name="Pred"))
+#         cls_report = classification_report(y_true_names, y_pred_names,
+#                                            labels=labels_sorted, zero_division=0)
+
+#     # ---------- boundary via 4-neighborhood on *final* labels ----------
+#     boundary_set = set()
+#     for (x, y), lab in pred_loc2label.items():
+#         # 4-neighbors (left, right, up, down)
+#         for nb in ((x-1, y), (x+1, y), (x, y-1), (x, y+1)):
+#             if nb in pred_loc2label and pred_loc2label[nb] != lab:
+#                 boundary_set.add((x, y))
+#                 break
+#     # (optional) consistent order for plotting
+#     boundary_locs = sorted(boundary_set, key=lambda t: (t[1], t[0]))
+
+#     # ---------- plotting: component weight heatmap ----------
+#     weight_map = weights.reshape(roi_height, roi_width, K)
+#     data = weight_map[:, :, component]
+
+#     # center white at mean of max(weights[row]) restricted to boundary pixels
+#     if len(boundary_locs) > 0:
+#         max_vals_on_boundary = []
+#         for xy in boundary_locs:
+#             idx = loc2idx.get(xy, None)
+#             if idx is not None:
+#                 max_vals_on_boundary.append(float(np.max(weights[idx])))
+#         vcenter = float(np.mean(max_vals_on_boundary)) if len(max_vals_on_boundary) > 0 else 0.5
+#     else:
+#         vcenter = 0.5
+
+#     # green—white—red with white at vcenter
+#     colors = ["#2ca02c", "#ffffff", "#d62728"]
+#     cmap_custom = LinearSegmentedColormap.from_list("custom_diverging", colors)
+
+#     comp_vals = data.ravel()
+#     if np.isfinite(comp_vals).any():
+#         vmax = float(np.nanpercentile(comp_vals, 95))
+#     else:
+#         vmax = 1.0
+#     vmax = max(vcenter + 1e-6, vmax)  # ensure vmax > vcenter
+#     norm = TwoSlopeNorm(vmin=0.0, vcenter=vcenter, vmax=vmax)
+
+#     fig, ax = plt.subplots(figsize=figsize)
+#     im = ax.imshow(data, cmap=cmap_custom, norm=norm,
+#                    interpolation='nearest', origin='upper')
+
+#     legend_elements = []
+
+#     # anomalies (group by label)
+#     if anomalies_dict:
+#         unique_labels = sorted(set(anomalies_dict.values()))
+#         color_map = plt.cm.get_cmap('tab10', len(unique_labels))
+#         for idx_c, lab in enumerate(unique_labels):
+#             coords = [xy for xy, L in anomalies_dict.items() if L == lab]
+#             _add_boxes(loc, roi_height, roi_width, coords, ax,
+#                        color=color_map(idx_c), linewidth=2, hatch='////', alpha=0.85)
+#             legend_elements.append(Line2D([0],[0], color=color_map(idx_c), lw=2, label=f"Anomaly {lab}"))
+
+#     # reference sets (any number)
+#     if ref_pos_list:
+#         ref_colors = plt.cm.Set2(np.linspace(0, 1, min(10, len(ref_pos_list))))
+#         ref_markers = ['*', 'P', 'X', 'D', '^', 's', 'o', 'v', '<', '>']
+#         for i_set, ref_set in enumerate(ref_pos_list):
+#             if ref_set is None or len(ref_set) == 0:
+#                 continue
+#             ref_arr = np.asarray(ref_set)
+#             if ref_arr.ndim != 2 or ref_arr.shape[1] != 2:
+#                 raise ValueError(f"ref_pos_list[{i_set}] must be array-like of shape (M,2).")
+#             _add_boxes(loc, roi_height, roi_width, ref_arr, ax,
+#                        color=ref_colors[i_set % len(ref_colors)], linewidth=3, hatch=None, alpha=1.0)
+#             legend_elements.append(
+#                 Line2D([0],[0], marker=ref_markers[i_set % len(ref_markers)],
+#                        color=ref_colors[i_set % len(ref_colors)], markerfacecolor='none',
+#                        markeredgecolor=ref_colors[i_set % len(ref_colors)], lw=0,
+#                        label=f"Reference {i_set+1}")
+#             )
+
+#     # boundaries (black boxes)
+#     if len(boundary_locs) > 0:
+#         _add_boxes(loc, roi_height, roi_width, boundary_locs, ax,
+#                    color='black', linewidth=2, hatch=None, alpha=1.0)
+#         legend_elements.append(Line2D([0],[0], color='black', lw=2, label='Boundary'))
+
+#     # legend
+#     if legend_elements:
+#         ax.legend(handles=legend_elements, loc='lower center',
+#                   bbox_to_anchor=(0.5, -0.08), ncol=3)
+
+#     # colorbar
+#     cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+#     cbar.set_ticks([0.0, vcenter, vmax])
+#     cbar.set_ticklabels([f"0.0 (green)",
+#                          f"{vcenter:.3f} (white @ boundary mean max)",
+#                          f"{vmax:.3f} (red)"])
+
+#     ax.set_title(f"Component {component+1} Weight Map (labels/boundary from coord_to_label if provided)")
+#     ax.set_axis_off()
+#     plt.tight_layout()
+#     plt.show()
+
+#     metrics = {
+#         "accuracy": float(acc) if acc == acc else np.nan,
+#         "confusion_matrix": cm_df,
+#         "classification_report": cls_report
+#     }
+#     # boundary_locs as dict {coord -> label_id}
+#     boundary_dict = {xy: pred_loc2label[xy] for xy in boundary_locs}
+#     return {
+#         "pred_loc2label": pred_loc2label,
+#         "metrics": metrics,
+#         "boundary_dict": boundary_dict
+#     }
     
 def reconstruct_weighted_signals(
     file_list,
@@ -1122,160 +1513,383 @@ def plot_weight_sum_histogram(weights, center=1.0, bins=50):
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.show()
-
-def get_intersection_points(weight_maps, y_indice, x_min, y_min, height, width, plot=True, feature_to_show=0):
+def get_intersection_points_x(
+    weight_maps,
+    x_indice,
+    x_min, y_min,
+    height, width,
+    plot=True,
+    feature_to_show=0,
+    # tolerance for "equals global max"
+    max_atol=1e-9, max_rtol=1e-9,
+    # filters for “regular” crossings
+    min_diff_change=1e-6,       # require |diff[idx]| and |diff[idx+1]| >= this
+    min_slope=1e-6,             # require |slope| >= this in the crossing interval
+    require_opposite_slopes=False,  # enforce opposite slope signs (X-shape)
+    exclude_local_extrema=False      # exclude endpoints that are local extrema
+):
     """
-    Get intersection points for a specific y_index across multiple weight maps.
-    Returns actual data points near intersections instead of interpolated points.
-    
-    Parameters:
-    - weight_maps: list of 2D arrays (height, width) representing weight maps
-    - y_indice: the y index to analyze
-    - x_min, y_min: coordinates of the top-left corner
-    - height, width: dimensions of the weight maps
-    - plot: whether to create a plot
-    - feature_to_show: which feature to display in the weight map (default: 0)
-    
+    Find intersection points for a specific x index across multiple weight maps (column-wise).
+    Only the two endpoints around each sign-change interval are considered:
+      - before = y[idx], after = y[idx+1]
+    A candidate endpoint is valid only if max(w_i, w_j) at that y equals the global
+    maximum among all features at that y (within tolerance).
+    Optionally filter to favor “regular” crossings (X-shape) and avoid peaks/valleys.
+
     Returns:
-    - intersections: list of (x_abs, y_abs, feature_i, feature_j, point_type, x_rel, value_i, value_j) tuples
-    - fig: the matplotlib figure object
+      intersections: list of (x_abs, y_abs, feature_i, feature_j, point_type, y_rel, value_i, value_j)
+      fig: matplotlib Figure or None
     """
     n_features = len(weight_maps)
-    
-    # Extract the row for the given y_indice
-    row_data = [wm[y_indice, :] for wm in weight_maps]
-    
-    # Create x coordinates (relative)
-    x_indices = np.arange(width)
-    
-    # Create figure with two subplots
+
+    # Extract the column at x_indice for each feature
+    col_data = [wm[:, x_indice] for wm in weight_maps]  # each shape: (height,)
+    y_indices = np.arange(height)
+
+    # For this column, compute the global max across all features at each y
+    all_cols_stack = np.vstack(col_data)   # (n_features, height)
+    row_global_max = np.max(all_cols_stack, axis=0)  # length = height
+
+    # Plot setup
     if plot:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-        
-        # Left subplot: Weight map with highlighted row
-        # Use origin='upper' to have (0,0) at top-left
-        weight_map_img = ax1.imshow(weight_maps[feature_to_show], cmap='viridis', 
-                                   aspect='auto', origin='upper')
-        
-        # Add a horizontal line at the current y_indice
-        ax1.axhline(y=y_indice, color='red', linestyle='--', linewidth=2)
-        ax1.set_title(f'Weight Map (Feature {feature_to_show+1})\nHighlighted Row: {y_indice}')
-        ax1.set_xlabel('X Coordinate')
-        ax1.set_ylabel('Y Coordinate')
-        
-        # Add a colorbar for the weight map
+
+        # Left: weight map with highlighted column
+        weight_map_img = ax1.imshow(weight_maps[feature_to_show], cmap='viridis',
+                                    aspect='auto', origin='upper')
+        ax1.axvline(x=x_indice, color='red', linestyle='--', linewidth=2)
+        ax1.set_title(f'Weight Map (Feature {feature_to_show+1})\nHighlighted Column: {x_indice}')
+        ax1.set_xlabel('X Coordinate'); ax1.set_ylabel('Y Coordinate')
         plt.colorbar(weight_map_img, ax=ax1, label='Weight Value')
-        
-        # Right subplot: Weight curves
+
+        # Right: curves along this column
+        colors = plt.cm.tab10(np.linspace(0, 1, n_features))
+        for i, (data, color) in enumerate(zip(col_data, colors)):
+            ax2.plot(y_indices, data, 'o-', color=color, label=f'Weight {i+1}', linewidth=2, markersize=4)
+    else:
+        fig, ax1, ax2 = None, None, None
+
+    def is_global_max_for_pair(wi, wj, yk):
+        """Check if max(wi, wj) equals the global max at yk (within tolerance)."""
+        return np.isclose(max(wi, wj), row_global_max[yk], atol=max_atol, rtol=max_rtol)
+
+    def slope(arr, k):
+        """Slope on the interval [k, k+1] along y."""
+        if k + 1 >= len(arr):
+            return 0.0
+        return float(arr[k+1] - arr[k])
+
+    def is_extremum(arr, k):
+        """
+        Whether arr[k] is a local extremum (peak/valley/flat top) based on
+        sign change or both left/right slopes being very small.
+        """
+        left = float(arr[k] - arr[k-1]) if k - 1 >= 0 else 0.0
+        right = float(arr[k+1] - arr[k]) if k + 1 < len(arr) else 0.0
+        if abs(left) < min_slope and abs(right) < min_slope:
+            return True
+        return np.sign(left) * np.sign(right) <= 0
+
+    intersections = []
+
+    # Check all feature pairs
+    for i in range(n_features):
+        for j in range(i + 1, n_features):
+            diff = col_data[i] - col_data[j]  # length = height
+
+            # sign changes indicate potential crossing between y=idx and y=idx+1
+            sign_changes = np.where(np.diff(np.sign(diff)) != 0)[0]
+
+            for idx in sign_changes:
+                if idx + 1 >= height:
+                    continue
+
+                # Slopes along this y-interval for both curves
+                s_i = slope(col_data[i], idx)
+                s_j = slope(col_data[j], idx)
+
+                # --- Regular-crossing filters (avoid peak/valley artifacts) ---
+                # 1) Non-trivial slopes
+                if abs(s_i) < min_slope or abs(s_j) < min_slope:
+                    continue
+                # 2) Opposite slope directions (optional)
+                if require_opposite_slopes and np.sign(s_i) * np.sign(s_j) >= 0:
+                    continue
+                # 3) Differences at both ends large enough
+                if abs(diff[idx]) < min_diff_change or abs(diff[idx+1]) < min_diff_change:
+                    continue
+                # 4) Endpoints should not be local extrema (optional)
+                if exclude_local_extrema:
+                    bad = False
+                    for arr in (col_data[i], col_data[j]):
+                        if 0 < idx < height - 1 and is_extremum(arr, idx):
+                            bad = True; break
+                        if 0 < idx + 1 < height - 1 and is_extremum(arr, idx + 1):
+                            bad = True; break
+                    if bad:
+                        continue
+
+                # --- Evaluate the two endpoints (before=idx, after=idx+1) ---
+                candidates = []
+
+                # before endpoint
+                k = idx
+                wi_b, wj_b = col_data[i][k], col_data[j][k]
+                if is_global_max_for_pair(wi_b, wj_b, k):
+                    candidates.append((
+                        x_min + x_indice, y_min + y_indices[k],
+                        i, j, "before_intersection", y_indices[k], wi_b, wj_b
+                    ))
+
+                # after endpoint
+                k = idx + 1
+                wi_a, wj_a = col_data[i][k], col_data[j][k]
+                if is_global_max_for_pair(wi_a, wj_a, k):
+                    candidates.append((
+                        x_min + x_indice, y_min + y_indices[k],
+                        i, j, "after_intersection", y_indices[k], wi_a, wj_a
+                    ))
+
+                if not candidates:
+                    continue
+
+                # Choose the endpoint with the smallest |wi - wj|
+                chosen = min(candidates, key=lambda p: abs(p[6] - p[7]))
+                intersections.append(chosen)
+
+                if plot:
+                    # Mark valid endpoints
+                    for p in candidates:
+                        c = 'blue' if p[4] == 'before_intersection' else 'green'
+                        ax2.plot(p[5], p[6], 'o', markersize=7, color=c, alpha=0.85,
+                                 markeredgecolor='white', markeredgewidth=1)
+                        ax2.plot(p[5], p[7], 'o', markersize=7, color=c, alpha=0.85,
+                                 markeredgecolor='white', markeredgewidth=1)
+                        ax2.plot([p[5], p[5]], [p[6], p[7]], '--', alpha=0.5)
+                        ax1.plot(x_indice, p[5], 'o', markersize=6, color=c, alpha=0.9)
+
+                    # Highlight chosen intersection
+                    ax2.plot(chosen[5], chosen[6], 'o', markersize=10, color='red',
+                             markeredgecolor='white', markeredgewidth=2)
+                    ax2.plot(chosen[5], chosen[7], 'o', markersize=10, color='red',
+                             markeredgecolor='white', markeredgewidth=2)
+                    ax2.plot([chosen[5], chosen[5]], [chosen[6], chosen[7]], 'r--', linewidth=2, alpha=0.8)
+                    ax2.annotate(f'({chosen[0]:.1f}, {chosen[1]:.1f})',
+                                 (chosen[5], (chosen[6] + chosen[7]) / 2),
+                                 xytext=(0, 10), textcoords='offset points',
+                                 bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="red", alpha=0.7))
+                    ax1.plot(x_indice, chosen[5], 'o', markersize=10, color='red',
+                             markeredgecolor='white', markeredgewidth=2)
+
+    if plot:
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='blue',  markersize=8, label='Before (valid)'),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=8, label='After (valid)'),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='red',   markersize=8, label='Chosen Intersection')
+        ]
+        ax2.legend(handles=legend_elements, loc='best')
+        ax2.set_xlabel('Y Relative Coordinate')
+        ax2.set_ylabel('Weight Value')
+        ax2.set_title(f'Weight Values at X Relative Coordinate: {x_indice}')
+        ax2.grid(True, alpha=0.3)
+        plt.tight_layout(); plt.show()
+
+    return intersections, fig
+
+def get_intersection_points_y(
+    weight_maps,
+    y_index,
+    x_min, y_min,
+    height, width,
+    plot=True,
+    feature_to_show=0,
+    # tolerance for equality with global max
+    max_atol=1e-9, max_rtol=1e-9,
+    # filtering parameters for “regular” intersections
+    min_diff_change=1e-6,     # require |diff[idx]|, |diff[idx+1]| >= this value
+    min_slope=1e-6,           # require |slope| >= this value
+    require_opposite_slopes=False,  # require opposite slopes in the crossing interval
+    exclude_local_extrema=False     # exclude points that are local extrema
+):
+    """
+    Find intersection points between weight curves at a given y_index.
+
+    Logic:
+    - For each pair of curves (feature i, j), detect intervals [idx, idx+1] where their values cross.
+    - Only consider the two endpoints of that interval: before=idx, after=idx+1.
+    - A candidate endpoint is valid if:
+        * max(weight_i, weight_j) at this x equals the global maximum among ALL features at this x (within tolerance).
+    - Additional filters for “regular” intersections (to exclude peak/valley artifacts):
+        * Slopes of the two curves in the interval must not be too small (>= min_slope).
+        * Optionally require slopes to have opposite signs.
+        * Require that the differences at both ends are above a threshold (min_diff_change).
+        * Optionally exclude endpoints that are local extrema.
+    - Among valid before/after points, choose the one with the smallest |wi - wj| as the final intersection point.
+
+    Parameters
+    ----------
+    weight_maps : list[np.ndarray]
+        List of 2D arrays (height, width).
+    y_index : int
+        Row index to analyze.
+    x_min, y_min : float
+        Top-left corner coordinates in absolute space.
+    height, width : int
+        Dimensions of the weight maps.
+    plot : bool
+        Whether to plot.
+    feature_to_show : int
+        Which feature map to show on the left subplot.
+    max_atol, max_rtol : float
+        Tolerances for comparing with the global maximum.
+    min_diff_change : float
+        Minimum absolute diff required at the crossing ends.
+    min_slope : float
+        Minimum slope magnitude required in the crossing interval.
+    require_opposite_slopes : bool
+        Whether to require opposite slopes in the interval.
+    exclude_local_extrema : bool
+        Whether to exclude points that are local extrema.
+
+    Returns
+    -------
+    intersections : list of tuples
+        Each tuple: (x_abs, y_abs, feature_i, feature_j, point_type, x_rel, value_i, value_j).
+    fig : matplotlib Figure or None
+    """
+    n_features = len(weight_maps)
+    row_data = [wm[y_index, :] for wm in weight_maps]
+    x_indices = np.arange(width)
+
+    # global max across all features at each x in this row
+    all_rows_stack = np.vstack(row_data)  # (n_features, width)
+    col_global_max = np.max(all_rows_stack, axis=0)
+
+    # Plot setup
+    if plot:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        weight_map_img = ax1.imshow(weight_maps[feature_to_show], cmap='viridis',
+                                    aspect='auto', origin='upper')
+        ax1.axhline(y=y_index, color='red', linestyle='--', linewidth=2)
+        ax1.set_title(f'Weight Map (Feature {feature_to_show+1})\nHighlighted Row: {y_index}')
+        ax1.set_xlabel('X Coordinate'); ax1.set_ylabel('Y Coordinate')
+        plt.colorbar(weight_map_img, ax=ax1, label='Weight Value')
+
         colors = plt.cm.tab10(np.linspace(0, 1, n_features))
         for i, (data, color) in enumerate(zip(row_data, colors)):
             ax2.plot(x_indices, data, 'o-', color=color, label=f'Weight {i+1}', linewidth=2, markersize=4)
     else:
         fig, ax1, ax2 = None, None, None
-    
-    # Find intersection points between pairs of lines
+
+    def is_global_max_for_pair(wi, wj, xk):
+        return np.isclose(max(wi, wj), col_global_max[xk], atol=max_atol, rtol=max_rtol)
+
+    def slope(arr, k):
+        if k+1 >= len(arr): return 0.0
+        return float(arr[k+1] - arr[k])
+
+    def is_extremum(arr, k):
+        # Check if arr[k] is a local extremum (slope changes sign)
+        left = float(arr[k] - arr[k-1]) if k-1 >= 0 else 0.0
+        right = float(arr[k+1] - arr[k]) if k+1 < len(arr) else 0.0
+        if abs(left) < min_slope and abs(right) < min_slope:
+            return True
+        return np.sign(left) * np.sign(right) <= 0
+
     intersections = []
-    
-    # Check all pairs
+
     for i in range(n_features):
-        for j in range(i+1, n_features):
-            # Calculate the difference between the two curves
+        for j in range(i + 1, n_features):
             diff = row_data[i] - row_data[j]
-            
-            # Find where the difference changes sign (potential intersections)
-            sign_changes = np.where(np.diff(np.sign(diff)))[0]
-            
-            # For each sign change, find the actual data points around the intersection
+            # sign change between idx and idx+1
+            sign_changes = np.where(np.diff(np.sign(diff)) != 0)[0]
+
             for idx in sign_changes:
-                if idx + 1 >= len(x_indices):
+                if idx + 1 >= width:
                     continue
-                
-                # Get the actual data points around the intersection
-                points_before = []
-                points_after = []
-                
-                # Add points before the intersection (if available)
-                for k in range(max(0, idx-1), idx+1):
-                    x_abs = x_min + x_indices[k]
-                    y_abs = y_min + y_indice
-                    points_before.append((x_abs, y_abs, i, j, "before_intersection", x_indices[k], row_data[i][k], row_data[j][k]))
-                
-                # Add points after the intersection (if available)
-                for k in range(idx+1, min(len(x_indices), idx+3)):
-                    x_abs = x_min + x_indices[k]
-                    y_abs = y_min + y_indice
-                    points_after.append((x_abs, y_abs, i, j, "after_intersection", x_indices[k], row_data[i][k], row_data[j][k]))
-                
-                # Determine which point is closer to the actual intersection
-                # We'll use the point with the smallest absolute difference between the two curves
-                all_points = points_before + points_after
-                if all_points:
-                    # Find the point with the smallest absolute difference
-                    min_diff_point = min(all_points, key=lambda p: abs(p[6] - p[7]))
-                    intersections.append(min_diff_point)
-                    
-                    if plot:
-                        # Mark all points_before in blue
-                        for point in points_before:
-                            ax2.plot(point[5], point[6], 'o', markersize=6, 
-                                    color='blue', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
-                            ax2.plot(point[5], point[7], 'o', markersize=6, 
-                                    color='blue', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
-                        
-                        # Mark all points_after in green
-                        for point in points_after:
-                            ax2.plot(point[5], point[6], 'o', markersize=6, 
-                                    color='green', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
-                            ax2.plot(point[5], point[7], 'o', markersize=6, 
-                                    color='green', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
-                        
-                        # Mark the closest point in red (larger marker)
-                        ax2.plot(min_diff_point[5], min_diff_point[6], 'o', markersize=10, 
-                                color='red', markeredgecolor='white', markeredgewidth=2)
-                        ax2.plot(min_diff_point[5], min_diff_point[7], 'o', markersize=10, 
-                                color='red', markeredgecolor='white', markeredgewidth=2)
-                        
-                        # Draw a vertical line to connect the two points at the closest intersection
-                        ax2.plot([min_diff_point[5], min_diff_point[5]], 
-                                [min_diff_point[6], min_diff_point[7]], 
-                                'r--', alpha=0.7, linewidth=2)
-                        
-                        # Add text annotation for the closest point - only show coordinates
-                        ax2.annotate(f'({min_diff_point[0]:.1f}, {min_diff_point[1]:.1f})', 
-                                   (min_diff_point[5], (min_diff_point[6] + min_diff_point[7])/2),
-                                   xytext=(10, 0), textcoords='offset points',
-                                   bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="red", alpha=0.7))
-                        
-                        # Also mark the points on the weight map
-                        for point in points_before:
-                            ax1.plot(point[5], y_indice, 'o', markersize=6, 
-                                    color='blue', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
-                        
-                        for point in points_after:
-                            ax1.plot(point[5], y_indice, 'o', markersize=6, 
-                                    color='green', markeredgecolor='white', markeredgewidth=1, alpha=0.7)
-                        
-                        ax1.plot(min_diff_point[5], y_indice, 'o', markersize=10, 
-                                color='red', markeredgecolor='white', markeredgewidth=2)
-    
+
+                # slopes in this interval
+                s_i = slope(row_data[i], idx)
+                s_j = slope(row_data[j], idx)
+
+                # --- Regular intersection filters ---
+                if abs(s_i) < min_slope or abs(s_j) < min_slope:
+                    continue
+                if require_opposite_slopes and np.sign(s_i) * np.sign(s_j) >= 0:
+                    continue
+                if abs(diff[idx]) < min_diff_change or abs(diff[idx+1]) < min_diff_change:
+                    continue
+                if exclude_local_extrema:
+                    bad = False
+                    for arr in (row_data[i], row_data[j]):
+                        if 0 < idx < width-1 and is_extremum(arr, idx):
+                            bad = True; break
+                        if 0 < idx+1 < width-1 and is_extremum(arr, idx+1):
+                            bad = True; break
+                    if bad:
+                        continue
+
+                # --- Evaluate before/after endpoints ---
+                candidates = []
+
+                # before = idx
+                k = idx
+                wi_b, wj_b = row_data[i][k], row_data[j][k]
+                if is_global_max_for_pair(wi_b, wj_b, k):
+                    candidates.append((
+                        x_min + x_indices[k], y_min + y_index,
+                        i, j, "before_intersection", x_indices[k], wi_b, wj_b
+                    ))
+
+                # after = idx+1
+                k = idx + 1
+                wi_a, wj_a = row_data[i][k], row_data[j][k]
+                if is_global_max_for_pair(wi_a, wj_a, k):
+                    candidates.append((
+                        x_min + x_indices[k], y_min + y_index,
+                        i, j, "after_intersection", x_indices[k], wi_a, wj_a
+                    ))
+
+                if not candidates:
+                    continue
+
+                chosen = min(candidates, key=lambda p: abs(p[6] - p[7]))
+                intersections.append(chosen)
+
+                if plot:
+                    for p in candidates:
+                        c = 'blue' if p[4] == 'before_intersection' else 'green'
+                        ax2.plot(p[5], p[6], 'o', markersize=7, color=c, alpha=0.85,
+                                 markeredgecolor='white', markeredgewidth=1)
+                        ax2.plot(p[5], p[7], 'o', markersize=7, color=c, alpha=0.85,
+                                 markeredgecolor='white', markeredgewidth=1)
+                        ax2.plot([p[5], p[5]], [p[6], p[7]], '--', alpha=0.5)
+                        ax1.plot(p[5], y_index, 'o', markersize=6, color=c, alpha=0.9)
+
+                    ax2.plot(chosen[5], chosen[6], 'o', markersize=10, color='red',
+                             markeredgecolor='white', markeredgewidth=2)
+                    ax2.plot(chosen[5], chosen[7], 'o', markersize=10, color='red',
+                             markeredgecolor='white', markeredgewidth=2)
+                    ax2.plot([chosen[5], chosen[5]], [chosen[6], chosen[7]], 'r--', linewidth=2, alpha=0.8)
+                    ax2.annotate(f'({chosen[0]:.1f}, {chosen[1]:.1f})',
+                                 (chosen[5], (chosen[6] + chosen[7]) / 2),
+                                 xytext=(10, 0), textcoords='offset points',
+                                 bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="red", alpha=0.7))
+                    ax1.plot(chosen[5], y_index, 'o', markersize=10, color='red',
+                             markeredgecolor='white', markeredgewidth=2)
+
     if plot:
-        # Add legend for the point types
-        from matplotlib.lines import Line2D
         legend_elements = [
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', markersize=8, label='Before Intersection'),
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=8, label='After Intersection'),
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='red', markersize=8, label='Closest Point')
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='blue',  markersize=8, label='Before (valid)'),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=8, label='After (valid)'),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='red',   markersize=8, label='Chosen Intersection')
         ]
         ax2.legend(handles=legend_elements, loc='best')
-        
-        ax2.set_xlabel('X Relative Coordinate')
-        ax2.set_ylabel('Weight Value')
-        ax2.set_title(f'Weight Values at Y Relative Coordinate: {y_indice}')
+        ax2.set_xlabel('X Relative Coordinate'); ax2.set_ylabel('Weight Value')
+        ax2.set_title(f'Weight Values at Y Relative Coordinate: {y_index}')
         ax2.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        plt.show()
-        
+        plt.tight_layout(); plt.show()
+
     return intersections, fig
 
 def get_weight_map(weights, loc, height, width):
@@ -1297,33 +1911,9 @@ def get_weight_map(weights, loc, height, width):
         weight_maps.append(weight_map)
     return weight_maps
 
-def filter_intersections_by_type(intersections, curve_type=None, feature_i=None, feature_j=None):
-    """
-    Filter intersections by type and/or features.
-    
-    Parameters:
-    - intersections: list of intersection points
-    - curve_type: filter by curve type
-    - feature_i: filter by first feature index
-    - feature_j: filter by second feature index
-    
-    Returns:
-    - filtered_intersections: filtered list of intersection points
-    """
-    filtered = intersections
-    
-    if curve_type is not None:
-        filtered = [point for point in filtered if point[4] == curve_type]
-    
-    if feature_i is not None:
-        filtered = [point for point in filtered if point[2] == feature_i]
-    
-    if feature_j is not None:
-        filtered = [point for point in filtered if point[3] == feature_j]
-    
-    return filtered
 
-def find_all_intersections(weights, loc, height, width, plot=False, feature_to_show=0):
+
+# def find_all_intersections(weights, loc, height, width, plot=False, feature_to_show=0):
     """
     Find all intersection points across all y_indices.
     
@@ -1353,3 +1943,54 @@ def find_all_intersections(weights, loc, height, width, plot=False, feature_to_s
         all_intersections.extend(intersections)
     
     return all_intersections
+
+
+def find_all_intersections_xy(weights, loc, height, width, require_opposite_slopes= False, exclude_local_extrema= False):
+    """
+    Find all intersection points across all y_indices and x_indices.
+    
+    Parameters:
+    - weights: array of shape (n_sample, n_features) with weight values
+    - loc: array of shape (n_sample, 2) with coordinates
+    - height, width: dimensions to reshape the weights into
+    
+    Returns:
+    - all_intersections: dictionary with keys 'y_based' and 'x_based' containing intersection points
+    - overlapping_coords: set of coordinates that appear in both y-based and x-based intersections
+    """
+    weight_maps = get_weight_map(weights, loc, height, width)
+    
+    # Find x_min, y_min (top-left corner)
+    x_min = np.min(loc[:, 0])
+    y_min = np.min(loc[:, 1])
+    
+    # Find intersections based on y_indices
+    y_based_intersections = []
+    for y_indice in range(height):
+        intersections, _ = get_intersection_points_y(
+            weight_maps, y_indice, x_min, y_min, height, width, False, 
+            require_opposite_slopes=require_opposite_slopes, exclude_local_extrema=exclude_local_extrema
+        )
+        y_based_intersections.extend(intersections)
+    
+    # Find intersections based on x_indices
+    x_based_intersections = []
+    for x_indice in range(width):
+        intersections, _ = get_intersection_points_x(
+            weight_maps, x_indice, x_min, y_min, height, width, False,
+            require_opposite_slopes=require_opposite_slopes, exclude_local_extrema=exclude_local_extrema
+        )
+        x_based_intersections.extend(intersections)
+    
+    # Extract coordinates from intersections
+    y_based_coords = {(point[0], point[1]) for point in y_based_intersections}
+    x_based_coords = {(point[0], point[1]) for point in x_based_intersections}
+    
+    # Find overlapping coordinates
+    overlapping_coords = y_based_coords.intersection(x_based_coords)
+    
+    return {
+        'y_based': y_based_intersections,
+        'x_based': x_based_intersections,
+        'overlapping': list(overlapping_coords)
+    }

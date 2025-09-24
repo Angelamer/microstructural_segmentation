@@ -82,8 +82,8 @@ def run_PCA(ROI,components,h,w,slice_x,slice_y):
     bar.finish()
     # print explained variance ratio
 
-    print("Explained Variance Ratio:")
-    print(pca.explained_variance_ratio_)
+    # print("Explained Variance Ratio:")
+    # print(pca.explained_variance_ratio_)
     return pca_scores, pca
 
 def plot_explained_variance(pca):

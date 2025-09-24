@@ -65,45 +65,53 @@ def coord_xmap_dict(xmap, step=0.05):
 
     return phase_dict
    
-def coord_phase_dict_from_dataframe(df):
+def coord_phase_dict_from_dataframe(df, fill_full_grid=False):
     """
-    Build a dictionary mapping (x_index, y_index) → phase_id 
-    from a DataFrame of EBSD/EDS scan data.
+    Build a dictionary mapping (x_index, y_index) → phase_id from a DataFrame.
+
+    Keeps entries where phase_id == -1 (e.g., not_indexed).
 
     Args:
-        df (pd.DataFrame): Must contain columns 'x_indice', 'y_indice', 'phase_id'.
-        step (float): Scan step size (not used in indexing, just for reference).
+        df (pd.DataFrame): must have columns 'x_indice', 'y_indice', 'phase_id'.
+        fill_full_grid (bool): 
+            - False (default): only include coordinates present in df (including -1).
+            - True: fill the full rectangular grid [0..max_x]×[0..max_y],
+                    assigning -1 where df has no sample.
 
     Returns:
-        dict: phase_dict where keys are (ix, iy) tuples and values are phase_id.
-              Dictionary is filled in column-major order (x fixed, iterate over y).
+        dict: {(ix, iy): phase_id}
     """
-    
-    # Extract required columns
-    x_indices = df['x_indice'].values
-    y_indices = df['y_indice'].values
-    phase_ids = df['phase_id'].values
-    
-   
-    # Determine maximum indices
-    max_ix = np.max(x_indices)
-    max_iy = np.max(y_indices)
-    
-    # Initialize array with -1 (meaning "no phase")
-    phase_array = np.full((max_iy + 1, max_ix + 1), -1)
-    
-    # Fill phase array
+    # Ensure columns exist
+    required = {'x_indice', 'y_indice', 'phase_id'}
+    missing = required - set(df.columns)
+    if missing:
+        raise KeyError(f"Missing columns in df: {missing}")
+
+    x_indices = df['x_indice'].to_numpy()
+    y_indices = df['y_indice'].to_numpy()
+    phase_ids = df['phase_id'].to_numpy()
+
+    # Case 1: only use provided samples (keep -1s)
+    if not fill_full_grid:
+        # If duplicates exist, last occurrence wins (same as your previous fill behavior)
+        phase_dict = {}
+        for ix, iy, pid in zip(x_indices, y_indices, phase_ids):
+            phase_dict[(int(ix), int(iy))] = int(pid)
+        return phase_dict
+
+    # Case 2: fill full grid, default -1 where missing
+    max_ix = int(np.max(x_indices))
+    max_iy = int(np.max(y_indices))
+    phase_array = np.full((max_iy + 1, max_ix + 1), -1, dtype=int)
+
     for ix, iy, pid in zip(x_indices, y_indices, phase_ids):
-        phase_array[iy, ix] = pid
-    
-    # Build dictionary (column-major order: loop over y for each x)
+        phase_array[int(iy), int(ix)] = int(pid)
+
     phase_dict = {}
     for ix in range(max_ix + 1):
         for iy in range(max_iy + 1):
-            pid = phase_array[iy, ix]
-            if pid != -1:
-                phase_dict[(ix, iy)] = pid
-    
+            phase_dict[(ix, iy)] = int(phase_array[iy, ix])  # includes -1
+
     return phase_dict
 
 def get_processed_signals(ROI, loc, h, w, slice_x, slice_y, save_path=None):

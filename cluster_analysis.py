@@ -18,66 +18,144 @@ from matplotlib.lines import Line2D
 # from scipy.spatial.distance import mahalanobis
 
 
-def gmm_clustering(scores, loc_roi, n_components=None, max_components=10, random_state=42):
+def _ranks(x, higher_is_better=False):
+    """0 = best. Stable rank without scipy."""
+    x = np.asarray(x, dtype=float)
+    if higher_is_better:
+        x = -x
+    order = np.argsort(x)
+    ranks = np.empty_like(order)
+    ranks[order] = np.arange(len(x))
+    return ranks
+
+def gmm_clustering(
+    scores,
+    loc_roi,
+    n_components=None,
+    max_components=10,
+    random_state=42,
+    covariance_type="full",
+    selection="hybrid",        # "hybrid" | "bic" | "aic" | "silhouette"
+    weights=(0.6, 0.2, 0.2),   # (w_bic, w_aic, w_sil) for selection="hybrid"
+    verbose=True,
+):
     """
-    GMM clustering for PCA scores with coordinate-to-label mapping.
-    
-    Args:
-        scores (np.ndarray): PCA scores or feature data of shape (n_samples, n_components).
-        loc_roi (list or np.ndarray): List of coordinates corresponding to each sample.
-        n_components (int or None): Predefined number of clusters. If None, the function 
-                                    will search for the optimal number of clusters.
-        max_components (int): Maximum number of clusters to consider when searching for optimal n.
-        random_state (int): Random seed for reproducibility.
-    
-    Returns:
-        gmm (GaussianMixture): Fitted Gaussian Mixture Model.
-        cluster_coords (dict): Dictionary mapping cluster labels to lists of coordinates.
-        cluster_labels (np.ndarray): Cluster label assigned to each sample.
-        optimal_n (int): Optimal number of clusters determined (or user-defined).
-        silhouette (float): Silhouette coefficient of the clustering (higher is better).
-        coord_to_label (dict): Dictionary mapping each coordinate (tuple) to its cluster label.
+    GMM clustering with model selection via BIC/AIC/Silhouette.
+
+    Args
+    ----
+    scores : (n_samples, n_features)
+    loc_roi : (n_samples, 2) coordinates
+    n_components : int or None
+        If None, search k in [2, max_components] and select by `selection`.
+    max_components : int
+    random_state : int
+    covariance_type : str
+        GMM covariance_type ("full","tied","diag","spherical")
+    selection : str
+        "hybrid" : rank-combine BIC (↓), AIC (↓), Silhouette (↑)
+        "bic"     : minimize BIC
+        "aic"     : minimize AIC
+        "silhouette": maximize silhouette
+    weights : tuple
+        Weights (w_bic, w_aic, w_sil) used when selection="hybrid".
+    verbose : bool
+
+    Returns
+    -------
+    gmm : GaussianMixture
+    cluster_coords : dict[int -> list[(x,y)]]
+    coord_to_label : dict[(x,y) -> int]
+    cluster_labels : (n_samples,)
+    optimal_n : int
+    silhouette : float
     """
+    scores = np.asarray(scores)
     loc_roi = np.asarray(loc_roi)
     assert len(scores) == len(loc_roi), "The sample number should be consistent."
 
-    # find optimal clustering number 
+    # Search k if not fixed
     if n_components is None:
-        n_components = np.arange(2, max_components+1)
-        silhouettes = []
-        models = []
-        for n in n_components:
-            gmm = GaussianMixture(n_components=n, random_state=random_state)
-            labels = gmm.fit_predict(scores)
-            sil = silhouette_score(scores, labels)
-            silhouettes.append(sil)
-            models.append((gmm, labels))
+        ks = np.arange(2, max_components + 1, dtype=int)
+        models, labels_all = [], []
+        bics, aics, sils = [], [], []
 
-        optimal_index = np.argmax(silhouettes)
-        optimal_n = n_components[optimal_index]
-        gmm, cluster_labels = models[optimal_index]
-        silhouette = silhouettes[optimal_index]
-        # Print optimal clustering info
-        print(f"Optimal clustering number: {optimal_n}, silhouette: {silhouette:.3f}")
+        for k in ks:
+            gmm = GaussianMixture(
+                n_components=k,
+                random_state=random_state,
+                covariance_type=covariance_type,
+            ).fit(scores)
+            labels = gmm.predict(scores)
+            labels_all.append(labels)
+            models.append(gmm)
+            bics.append(gmm.bic(scores))
+            aics.append(gmm.aic(scores))
+            # silhouette only meaningful when k>1 and each cluster has ≥2 points
+            try:
+                sil = silhouette_score(scores, labels) if k > 1 else np.nan
+            except Exception:
+                sil = np.nan
+            sils.append(sil)
+
+        # Decide best k
+        if selection == "bic":
+            best_idx = int(np.argmin(bics))
+        elif selection == "aic":
+            best_idx = int(np.argmin(aics))
+        elif selection == "silhouette":
+            # if all NaN, fallback to BIC
+            if np.all(np.isnan(sils)):
+                best_idx = int(np.argmin(bics))
+            else:
+                sils_arr = np.nan_to_num(sils, nan=-1.0)  # treat NaN as very bad
+                best_idx = int(np.argmax(sils_arr))
+        else:  # "hybrid"
+            w_bic, w_aic, w_sil = weights
+            r_bic = _ranks(bics, higher_is_better=False)
+            r_aic = _ranks(aics, higher_is_better=False)
+            # For silhouette, NaN -> worst rank
+            sils_arr = np.array(sils, dtype=float)
+            sils_arr = np.nan_to_num(sils_arr, nan=-1.0)
+            r_sil = _ranks(sils_arr, higher_is_better=True)
+            combined = w_bic * r_bic + w_aic * r_aic + w_sil * r_sil
+            best_idx = int(np.argmin(combined))
+
+        optimal_n = int(ks[best_idx])
+        gmm = models[best_idx]
+        cluster_labels = labels_all[best_idx]
+        silhouette = float(np.nan_to_num(sils[best_idx], nan=np.nan))
+
+        if verbose:
+            print(
+                f"[GMM] selection={selection} -> k={optimal_n} | "
+                f"BIC={bics[best_idx]:.1f} AIC={aics[best_idx]:.1f} "
+                f"SIL={silhouette if not np.isnan(silhouette) else float('nan'):.4f}"
+            )
     else:
-        optimal_n = n_components
-    
-        # Gaussian mixture
-        gmm = GaussianMixture(n_components=optimal_n, random_state=random_state)
+        optimal_n = int(n_components)
+        gmm = GaussianMixture(
+            n_components=optimal_n,
+            random_state=random_state,
+            covariance_type=covariance_type,
+        )
         cluster_labels = gmm.fit_predict(scores)
-        silhouette = silhouette_score(scores, cluster_labels) if optimal_n > 1 else np.nan
-        # Print self-defined clustering info
-        print(f"Self-defined clustering number: {optimal_n}, silhouette: {silhouette:.3f}")
-    
-    # Categorized by the labels
+        try:
+            silhouette = silhouette_score(scores, cluster_labels) if optimal_n > 1 else np.nan
+        except Exception:
+            silhouette = np.nan
+        if verbose:
+            print(f"[GMM] fixed k={optimal_n} | SIL={silhouette if not np.isnan(silhouette) else float('nan'):.4f}")
+
+    # Build mappings
     cluster_coords = {}
     coord_to_label = {}
-    for label in np.unique(cluster_labels):
-        mask = (cluster_labels == label)
-        cluster_coords[label] = loc_roi[mask].tolist()
+    for lab in np.unique(cluster_labels):
+        mask = (cluster_labels == lab)
+        cluster_coords[int(lab)] = [tuple(xy) for xy in loc_roi[mask]]
         for coord in loc_roi[mask]:
-            coord_to_label[tuple(coord)] = label
-    
+            coord_to_label[tuple(coord)] = int(lab)
+
     return gmm, cluster_coords, coord_to_label, cluster_labels, optimal_n, silhouette
 
 def calculate_cluster_metrics(gmm_model, cluster_labels, scores):
@@ -907,10 +985,9 @@ def plot_cnmf_weights_projected(
     cluster_labels=None,     # (N,) or None
     comps=(0, 1),            # tuple of component indices to plot (len=2 or 3)
     mode="2d",               # "2d" or "3d"
-    # --- boundary/junction criteria ---
-    tol_equal=0.1,           # "one band" for equality and dominance gap
-    tol_res = 0.1,
-    ref_pos_list=None,       # list of lists of reference coords: len == K or any; each inner list can be empty
+    # --- boundary points are now provided explicitly ---
+    boundary_locs=None,      # list/array of (x,y); these will be marked as boundary points
+    ref_pos_list=None,       # list/dict of reference coords; see docstring
     anomalies_dict=None,     # {(x,y): cluster_label_or_tag, ...}
     title="cNMF weights (projected)",
     ellipse_alpha=0.25,
@@ -979,72 +1056,48 @@ def plot_cnmf_weights_projected(
         Wnorm = weights
         
     Wplot = Wnorm[:, comps]  # use normalized weights for display
-    # ---------- boundary mask (TOP-2 rule you described) ----------
-    if K == 2:
-        # Only two comps: near-equal is the criterion; "others" are vacuous.
-        mask_boundary = (np.abs(Wnorm[:, 0] - Wnorm[:, 1]) <= float(tol_equal))
-    else:
-        # K >= 3
-        # Find indices of the top-2 weights per row (order of rows is preserved)
-        top2_idx = np.argpartition(Wnorm, -2, axis=1)[:, -2:]            # (N,2) (unordered pair)
-        # Retrieve the top-2 values
-        row_idx = np.arange(N)[:, None]
-        top2_vals = Wnorm[row_idx, top2_idx]                              # (N,2)
-        # Sort the two so that v1 >= v2 (only within the pair; rows not re-ordered)
-        v_sorted = np.sort(top2_vals, axis=1)[:, ::-1]                    # (N,2) -> [v1>=v2]
-        v1 = v_sorted[:, 0]
-        v2 = v_sorted[:, 1]
-
-        # Near-equal requirement for the TOP-2 pair
-        near_equal = np.abs(v1 - v2) <= float(tol_equal)                  # (N,)
-
-        # Compute max of "others" (all components except those two indices)
-        others_mask = np.ones((N, K), dtype=bool)
-        # both index arrays have shape (N, 1) and (N, 2) -> broadcasts to (N, 2) correctly
-        others_mask[np.arange(N)[:, None], top2_idx] = False
-
-        others_vals = np.where(others_mask, Wnorm, -np.inf)
-        others_max = np.max(others_vals, axis=1)                          # (N,)
-        assert not np.isneginf(others_max).any(), "others_max has -inf; check masking."
-
-        # Dominance requirement: others must be below mean(top2) by at least tol_res
-        mean_top2 = 0.5 * (v1 + v2)
-        others_ok = others_max <= (mean_top2 - float(tol_res))            # (N,)
-        # Final boundary mask
-        mask_boundary = near_equal & others_ok
-
-
-
-    # Helper: fetch reference coords array (M,2) for component index
-    def _get_ref_coords_for_comp(comp_idx):
-        if ref_pos_list is None:
-            return None
-        arr = None
-        if isinstance(ref_pos_list, dict):
-            arr = ref_pos_list.get(comp_idx, None)
-        else:  # list-like
-            if comp_idx < len(ref_pos_list):
-                arr = ref_pos_list[comp_idx]
-        if arr is None:
-            return None
-        arr = np.asarray(arr)
-        if arr.ndim != 2 or arr.shape[1] != 2 or arr.size == 0:
-            return None
-        # match dtype with loc for exact equality checks
-        if np.issubdtype(loc.dtype, np.integer):
-            arr = arr.astype(int, copy=False)
-        return arr
-    # Helper: map a set of (x,y) coords to indices in `loc`
+    # ----- boundary mask from boundary_locs (explicit input) -----
     def _coords_to_indices(coords_2d):
+        """Map a list/array of (x,y) coords to row indices in `loc`."""
+        if coords_2d is None:
+            return np.array([], dtype=int)
+        arr = np.asarray(coords_2d)
+        if arr.ndim != 2 or arr.shape[1] != 2 or arr.size == 0:
+            return np.array([], dtype=int)
         idxs = []
-        for pos in coords_2d:
+        for pos in arr:
             ix = np.where((loc == pos).all(axis=1))[0]
             if ix.size > 0:
                 idxs.append(ix[0])
-        if not idxs:
+        return np.asarray(idxs, dtype=int) if idxs else np.array([], dtype=int)
+
+    boundary_idx = _coords_to_indices(boundary_locs)
+    mask_boundary = np.zeros(N, dtype=bool)
+    if boundary_idx.size > 0:
+        mask_boundary[boundary_idx] = True
+
+    # ----- helpers for references/anomalies -----
+    def _get_ref_coords_for_comp(comp_idx):
+        if ref_pos_list is None:
             return None
-        return np.asarray(idxs, dtype=int)
-    # ----- colors per cluster -----
+        if isinstance(ref_pos_list, dict):
+            coords = ref_pos_list.get(comp_idx, None)
+        else:
+            coords = ref_pos_list[comp_idx] if (isinstance(ref_pos_list, (list, tuple)) and comp_idx < len(ref_pos_list)) else None
+        if coords is None:
+            return None
+        arr = np.asarray(coords)
+        if arr.ndim != 2 or arr.shape[1] != 2 or arr.size == 0:
+            return None
+        # keep dtype consistent with loc for exact equality
+        if np.issubdtype(loc.dtype, np.integer):
+            arr = arr.astype(int, copy=False)
+        return arr
+
+    def _coords_to_indices_any(coords_2d):
+        return _coords_to_indices(coords_2d)
+
+    # ----- cluster colors -----
     if cluster_labels is None:
         cluster_labels = np.zeros(N, dtype=int)
     cluster_labels = np.asarray(cluster_labels)
@@ -1055,74 +1108,61 @@ def plot_cnmf_weights_projected(
                 'BuGn','PuRd','Greys','PuBu','YlGn','GnBu']][:num_clusters]
     color_map = {lab: palette[i % len(palette)] for i, lab in enumerate(uniq)}
 
-    # ----- figure -----
+    # ----- plotting -----
     if mode.lower() == "2d":
         fig, ax = plt.subplots(figsize=(10, 7))
+
         # main scatter by cluster
         for lab in uniq:
+            # non-boundary first
             msk = (cluster_labels == lab) & (~mask_boundary)
-            ax.scatter(Wplot[msk, 0], Wplot[msk, 1],
-                       s=30, alpha=0.75, edgecolors='k', linewidths=0.5,
-                       c=[color_map[lab]], label=f"Cluster {lab}")
-            # confidence ellipse on the whole cluster (optional)
+            if np.any(msk):
+                ax.scatter(Wplot[msk, 0], Wplot[msk, 1],
+                           s=30, alpha=0.75, edgecolors='k', linewidths=0.5,
+                           c=[color_map[lab]], label=f"Cluster {lab}")
+            # optional ellipse per cluster
             _add_confidence_ellipse(ax, Wplot[cluster_labels == lab, :2], color_map[lab], alpha=ellipse_alpha)
 
-        # boundary points (highlight)
+        # boundary points (from input)
         if np.any(mask_boundary):
-            # Union (small + marker)
             ax.scatter(Wplot[mask_boundary, 0], Wplot[mask_boundary, 1],
                        s=35, marker="x", c="k", linewidths=1.1, alpha=0.9,
-                       label="Boundary (union)")
-            
+                       label="Boundary (given)")
 
-        # --- simplex edge and regression line ---
+        # simplex edge X + Y = 1
         xmin = 0.0 if xlim is None else xlim[0]
         xmax = 1.0 if xlim is None else xlim[1]
-        ymin = 0.0 if ylim is None else ylim[0]
-        ymax = 1.0 if ylim is None else ylim[1]
-
         x_line = np.linspace(xmin, xmax, 400)
-
-        # Simplex edge: X + Y = 1  ->  Y = 1 - X
         y_simplex = 1.0 - x_line
         ax.plot(x_line, y_simplex, 'r-', lw=1.6, alpha=0.9, label="X+Y=1")
 
-        # Regression (Y ~ X) using the projected points
+        # regression (Y ~ X) on all projected points
         reg = LinearRegression().fit(Wplot[:, [0]], Wplot[:, 1])
         y_reg = reg.predict(x_line.reshape(-1, 1))
         ax.plot(x_line, y_reg, 'b--', lw=1.4, alpha=0.8, label="Linear fit")
 
-        # (Optional) keep limits if provided
-        if xlim: ax.set_xlim(*xlim)
-        if ylim: ax.set_ylim(*ylim)
-                
-
-         # references for the selected comps only
+        # references for selected comps
         ref_markers = ['*', 'P', 'X', 'D', '^', 's']
         for j, comp_idx in enumerate(comps):
             coords = _get_ref_coords_for_comp(comp_idx)
             if coords is None:
                 continue
-            idxs = _coords_to_indices(coords)
-            if idxs is None:
+            idxs = _coords_to_indices_any(coords)
+            if idxs.size == 0:
                 continue
             ax.scatter(Wplot[idxs, 0], Wplot[idxs, 1],
                        s=200, marker=ref_markers[j % len(ref_markers)],
                        facecolor='yellow', edgecolor='k', linewidth=1.2,
                        label=f"Ref (comp {comp_idx})", zorder=10)
 
-
         # anomalies
         if anomalies_dict:
-            # group by anomaly label
             an_xy = list(anomalies_dict.items())  # [((x,y), lbl), ...]
-            a_idx = []
-            a_lab = []
+            a_idx, a_lab = [], []
             for (xy, lab) in an_xy:
                 ix = np.where((loc == xy).all(axis=1))[0]
                 if ix.size > 0:
-                    a_idx.append(ix[0])
-                    a_lab.append(lab)
+                    a_idx.append(ix[0]); a_lab.append(lab)
             if a_idx:
                 a_idx = np.asarray(a_idx, int); a_lab = np.asarray(a_lab, object)
                 for lab in np.unique(a_lab):
@@ -1140,9 +1180,7 @@ def plot_cnmf_weights_projected(
         plt.tight_layout()
         plt.show()
 
-        # return 2D regression stats
-        slope = float(reg.coef_[0]); intercept = float(reg.intercept_)
-        reg_info = {"slope": slope, "intercept": intercept}
+        reg_info = {"slope": float(reg.coef_[0]), "intercept": float(reg.intercept_)}
 
     elif mode.lower() == "3d":
         assert len(comps) == 3, "For 3D mode, comps must have length 3."
@@ -1157,17 +1195,17 @@ def plot_cnmf_weights_projected(
 
         if np.any(mask_boundary):
             ax.scatter(Wplot[mask_boundary, 0], Wplot[mask_boundary, 1], Wplot[mask_boundary, 2],
-                       s=30, marker="x", c="k", alpha=0.9, label="Boundary (union)")
-           
-        # simplex plane: w_i + w_j + w_k = 1
+                       s=30, marker="x", c="k", alpha=0.9, label="Boundary (given)")
+
+        # simplex plane w_i + w_j + w_k = 1
         g = np.linspace(0, 1, 30)
         X, Y = np.meshgrid(g, g)
         Z = 1.0 - X - Y
         Zmask = Z >= 0
-        Xp = np.where(Zmask, X, np.nan)
-        Yp = np.where(Zmask, Y, np.nan)
-        Zp = np.where(Zmask, Z, np.nan)
-        ax.plot_surface(Xp, Yp, Zp, color='r', alpha=0.15, linewidth=0, antialiased=False)
+        ax.plot_surface(np.where(Zmask, X, np.nan),
+                        np.where(Zmask, Y, np.nan),
+                        np.where(Zmask, Z, np.nan),
+                        color='r', alpha=0.15, linewidth=0, antialiased=False)
 
         # references
         ref_markers = ['*', 'P', 'X', 'D', '^', 's']
@@ -1175,8 +1213,8 @@ def plot_cnmf_weights_projected(
             coords = _get_ref_coords_for_comp(comp_idx)
             if coords is None:
                 continue
-            idxs = _coords_to_indices(coords)
-            if idxs is None:
+            idxs = _coords_to_indices_any(coords)
+            if idxs.size == 0:
                 continue
             ax.scatter(Wplot[idxs, 0], Wplot[idxs, 1], Wplot[idxs, 2],
                        s=120, marker=ref_markers[j % len(ref_markers)],
@@ -1186,8 +1224,7 @@ def plot_cnmf_weights_projected(
         # anomalies
         if anomalies_dict:
             an_xy = list(anomalies_dict.items())
-            a_idx = []
-            a_lab = []
+            a_idx, a_lab = [], []
             for (xy, lab) in an_xy:
                 ix = np.where((loc == xy).all(axis=1))[0]
                 if ix.size > 0:
@@ -1210,6 +1247,7 @@ def plot_cnmf_weights_projected(
         ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
         plt.tight_layout()
         plt.show()
+
         reg_info = None
     else:
         raise ValueError("mode must be '2d' or '3d'.")
@@ -1219,8 +1257,8 @@ def plot_cnmf_weights_projected(
         "proj": Wplot,
         "boundary_points": Wplot[mask_boundary],
         "boundary_indices": np.where(mask_boundary)[0],
-        "boundary_dict": {                             # NEW: map real (x,y) → cluster label
-            tuple(loc[i]): int(cluster_labels[i])
+        "boundary_dict": {
+            tuple(loc[i]): int(cluster_labels[i]) if cluster_labels is not None else None
             for i in np.where(mask_boundary)[0]
         },
         "regression_2d": reg_info if mode.lower() == "2d" else None,
@@ -1408,168 +1446,217 @@ def plot_gmm_clusters(scores, cluster_labels, optimal_n, variations, dim=2, anom
     plt.show()
 
 
-def evaluate_clustering_metrics(coord_dict, coord_to_label, name_map, cluster_name_map, print_table=True):
+def evaluate_clustering_metrics(coord_dict, coord_to_label, name_map, cluster_name_map=None, print_table=True, mapping_mode="majority"):
     """
-    Comprehensive clustering evaluation with optimal label mapping and confusion matrix
-    
-    Args:
-        coord_dict: dict, (x, y) -> phase index
-        coord_to_label: dict, (x, y) -> cluster index
-        name_map: dict, phase index -> phase name
-        cluster_name_map: dict, cluster index -> phase name or "Unknown"
-        print_table: bool, whether to print results
-        
-    Returns:
-        dict with evaluation metrics, mapping, and confusion matrix
-    """
-    # Get shared coordinates
-    shared_coords = sorted(set(coord_dict.keys()) & set(coord_to_label.keys()))
+    Comprehensive clustering evaluation with configurable label mapping:
+      - "majority": map each cluster to the true phase with the highest count in that cluster
+      - "hungarian": optimal one-to-one mapping via Hungarian algorithm (requires scipy)
 
-    
-    # Extract true and predicted labels
+    Args
+    ----
+    coord_dict : dict
+        (x, y) -> true phase index
+    coord_to_label : dict
+        (x, y) -> predicted cluster index
+    name_map : dict
+        phase index -> phase name
+    cluster_name_map : dict or None
+        cluster index -> phase name (user-specified). If None/empty, no user mapping is applied.
+    print_table : bool
+        whether to print metrics and tables
+    mapping_mode : str
+        "majority" (default) or "hungarian"
+
+    Returns
+    -------
+    dict with:
+        - metrics (incl. ARI, NMI, etc., user_accuracy if available, mapped accuracy)
+        - mapping (chosen mapping dict: cluster -> phase index)
+        - optimal_mapping (same as mapping, kept for backward compatibility)
+        - confusion_matrix (after applying chosen mapping)
+        - detailed_results (per-coordinate dataframe)
+    """
+    # 1) Shared coordinates
+    shared_coords = sorted(set(coord_dict.keys()) & set(coord_to_label.keys()))
+    if not shared_coords:
+        raise ValueError("No shared coordinates between coord_dict and coord_to_label.")
+
+    # 2) Extract labels
     y_true = [coord_dict[c] for c in shared_coords]
     y_pred = [coord_to_label[c] for c in shared_coords]
-    
-    # User-defined mapping
-    y_pred_user_mapped = []
-    valid_indices = []
-    
-    for i, (true_label, pred_label) in enumerate(zip(y_true, y_pred)):
-        # Obtain the user mapping phase name
-        user_phase_name = cluster_name_map.get(pred_label, "Unknown")
-        
-        # Search the corresponding value label
-        user_mapped_value = None
-        for k, v in name_map.items():
-            if v == user_phase_name:
-                user_mapped_value = k
-                break
 
-        if user_mapped_value is not None:
+    # 3) Optional user mapping accuracy (cluster_name_map maps to NAMES, not indices)
+    user_accuracy = None
+    if cluster_name_map:
+        y_pred_user_mapped = []
+        valid_indices = []
+
+        # Build reverse name_map: name -> index
+        name_to_index = {v: k for k, v in name_map.items()}
+
+        for i, (true_label, pred_label) in enumerate(zip(y_true, y_pred)):
+            user_phase_name = cluster_name_map.get(pred_label, None)
+            if user_phase_name is None:
+                continue
+            user_mapped_value = name_to_index.get(user_phase_name, None)
+            if user_mapped_value is None:
+                continue
             y_pred_user_mapped.append(user_mapped_value)
             valid_indices.append(i)
-    
-    # Onlu caculate the valid mapping accuracy
-    if valid_indices:
-        user_accuracy = accuracy_score(
-            [y_true[i] for i in valid_indices],
-            [y_pred_user_mapped[i] for i in range(len(valid_indices))]
-        )
-    else:
-        user_accuracy = 0.0
-        
-    # Create label mapping using Hungarian algorithm
-    def _create_optimal_mapping(y_true, y_pred):
-        # Create confusion matrix
-        unique_true = np.unique(y_true)
-        unique_pred = np.unique(y_pred)
-        cm = confusion_matrix(y_true, y_pred, labels=unique_true)
-        
-        # Apply Hungarian algorithm for optimal mapping
-        row_ind, col_ind = linear_sum_assignment(-cm)
-        
-        # Create mapping dictionary
+
+        if valid_indices:
+            user_accuracy = accuracy_score(
+                [y_true[i] for i in valid_indices],
+                y_pred_user_mapped
+            )
+
+    # 4) Build mapping per mode
+
+    def _contingency_true_by_pred(y_true_, y_pred_, unique_true=None, unique_pred=None):
+        """
+        Build a contingency matrix with rows = unique_true, cols = unique_pred.
+        """
+        if unique_true is None:
+            unique_true = np.unique(y_true_)
+        if unique_pred is None:
+            unique_pred = np.unique(y_pred_)
+
+        r = len(unique_true)
+        c = len(unique_pred)
+        cm = np.zeros((r, c), dtype=int)
+
+        # map labels to indices
+        t2i = {t: i for i, t in enumerate(unique_true)}
+        p2j = {p: j for j, p in enumerate(unique_pred)}
+
+        for t, p in zip(y_true_, y_pred_):
+            # skip unseen labels defensively
+            if t in t2i and p in p2j:
+                cm[t2i[t], p2j[p]] += 1
+        return cm, unique_true, unique_pred
+
+    def _majority_mapping(y_true_, y_pred_):
+        """
+        For each predicted cluster (column), pick the true label (row) with max count.
+        """
+        cm, unique_true, unique_pred = _contingency_true_by_pred(y_true_, y_pred_)
         mapping = {}
-        for true_idx, pred_idx in zip(row_ind, col_ind):
-            true_label = unique_true[true_idx]
-            pred_label = unique_pred[pred_idx]
+        for col_idx, pred_label in enumerate(unique_pred):
+            col_counts = cm[:, col_idx]
+            if col_counts.sum() == 0:
+                mapping[pred_label] = -1
+            else:
+                best_row = int(np.argmax(col_counts))
+                mapping[pred_label] = int(unique_true[best_row])
+        return mapping, cm, unique_true, unique_pred
+
+    def _hungarian_mapping(y_true_, y_pred_):
+        """
+        Optimal 1-1 mapping via Hungarian on a (pred x true) cost matrix.
+        """
+        from scipy.optimize import linear_sum_assignment  # raise if unavailable
+
+        # rows=true, cols=pred
+        cm_true_by_pred, unique_true, unique_pred = _contingency_true_by_pred(y_true_, y_pred_)
+        # Convert to (pred x true) so each row is a predicted cluster we must assign
+        cm_pred_by_true = cm_true_by_pred.T  # shape: (len(unique_pred), len(unique_true))
+
+        # maximize counts => minimize negative counts
+        row_ind, col_ind = linear_sum_assignment(-cm_pred_by_true)
+
+        mapping = {}
+        for r, c in zip(row_ind, col_ind):
+            pred_label = unique_pred[r]
+            true_label = unique_true[c]
             mapping[pred_label] = true_label
-        
-        return mapping, cm
-    
-    # Create optimal mapping
-    mapping, conf_matrix = _create_optimal_mapping(y_true, y_pred)
-    
-    # Apply mapping to predicted labels
-    y_pred_mapped = [mapping.get(label, -1) for label in y_pred]
-    
-    # Calculate metrics
+
+        # return the contingency in rows=true, cols=pred convention (useful for inspection)
+        return mapping, cm_true_by_pred, unique_true, unique_pred
+
+    if mapping_mode.lower() == "hungarian":
+        mapping, cm_raw, unique_true, unique_pred = _hungarian_mapping(y_true, y_pred)
+        mapping_name = "Hungarian (optimal 1-1)"
+    else:
+        mapping, cm_raw, unique_true, unique_pred = _majority_mapping(y_true, y_pred)
+        mapping_name = "Majority-vote"
+    # 5) Apply chosen mapping
+    y_pred_mapped = [mapping.get(lbl, -1) for lbl in y_pred]
+
+    # 6) Metrics
     metrics = {
         "ARI": adjusted_rand_score(y_true, y_pred),
         "NMI": normalized_mutual_info_score(y_true, y_pred),
         "homogeneity": homogeneity_score(y_true, y_pred),
         "completeness": completeness_score(y_true, y_pred),
-        "v_measure": v_measure_score(y_true, y_pred)
+        "v_measure": v_measure_score(y_true, y_pred),
+        "mapped_accuracy": accuracy_score(y_true, y_pred_mapped),
+        "mapping_mode": mapping_name,
     }
-    # Two kinds of accuracy and Hungarian Algorithm
     metrics["user_accuracy"] = user_accuracy
-    metrics["optimal_accuracy"] = accuracy_score(y_true, y_pred_mapped)
-    # Create detailed results table
+
+    # 7) Per-coordinate details
     results = []
+    name_to_index = {v: k for k, v in name_map.items()}
     for coord, true_label, pred_label in zip(shared_coords, y_true, y_pred):
         true_name = name_map.get(true_label, f"Phase_{true_label}")
-        
-        # user mapping
-        user_phase_name = cluster_name_map.get(pred_label, "Unknown")
-        user_mapped_value = None
-        for k, v in name_map.items():
-            if v == user_phase_name:
-                user_mapped_value = k
-                break
+
+        # user mapping (if provided)
+        user_phase_name = cluster_name_map.get(pred_label, "Unknown") if cluster_name_map else "—"
+        user_mapped_value = name_to_index.get(user_phase_name) if cluster_name_map else None
         user_match = (true_label == user_mapped_value) if user_mapped_value is not None else False
-        
-        # Hungarian mapping
+
+        # chosen mapping
         mapped_label = mapping.get(pred_label, -1)
         mapped_name = name_map.get(mapped_label, "Unmapped")
         is_match = (true_label == mapped_label)
-        
+
         results.append({
             "coordinate": coord,
             "true_phase": true_name,
             "pred_cluster": pred_label,
             "user_mapped_phase": user_phase_name,
             "user_match": user_match,
+            "mapped_phaseid": mapped_label,
             "mapped_phase": mapped_name,
             "match": is_match
         })
-    
+
     df = pd.DataFrame(results)
-    
-    # Print results if requested
+
+    # 8) Pretty print
     if print_table:
-        print("="*80)
+        print("=" * 80)
         print("Clustering Evaluation Results")
-        print("="*80)
-        
-        # Print metrics
+        print("=" * 80)
+
         print("\nEvaluation Metrics:")
-        print("-"*60)
+        print("-" * 60)
         metrics_df = pd.DataFrame(list(metrics.items()), columns=["Metric", "Value"])
         print(metrics_df.to_string(index=False))
-        
-        # Print mapping
-        print("\nOptimal Cluster-to-Phase Mapping:")
-        print("-"*60)
-        
-        # All labels
-        all_clusters = set(coord_to_label.values()) | set(cluster_name_map.keys()) | set(mapping.keys())
-        
-        mapping_data = []
-        for cluster in sorted(all_clusters):
-            user_map = cluster_name_map.get(cluster, "Unknown")
-            
-            optimal_value = mapping.get(cluster, -1)
-            optimal_map = name_map.get(optimal_value, "Unmapped")
-            
-            cluster_size = sum(1 for lbl in y_pred if lbl == cluster)
-            
-            mapping_data.append({
-                "cluster": cluster,
+
+        print(f"\nCluster-to-Phase Mapping ({mapping_name}):")
+        print("-" * 60)
+
+        # All clusters that appear anywhere
+        all_clusters = sorted(set(coord_to_label.values()) | set(mapping.keys()))
+        mapping_rows = []
+        for cl in all_clusters:
+            user_map_name = cluster_name_map.get(cl, "—") if cluster_name_map else "—"
+            mapped_idx = mapping.get(cl, -1)
+            mapped_name = name_map.get(mapped_idx, "Unmapped")
+            cluster_size = sum(1 for lbl in y_pred if lbl == cl)
+
+            mapping_rows.append({
+                "cluster": cl,
                 "Samples": cluster_size,
-                "User mapping": user_map,
-                "Algorithm mapping": optimal_map
+                "User mapping": user_map_name,
+                "Chosen mapping": mapped_name
             })
-        
-        mapping_df = pd.DataFrame(mapping_data)
-        print(mapping_df.to_string(index=False))
-        
+        print(pd.DataFrame(mapping_rows).to_string(index=False))
+
         print("\nConfusion Matrix (After Mapping):")
-        print("-"*60)
-        
+        print("-" * 60)
         all_labels = sorted(set(y_true) | set(y_pred_mapped))
-        
-        
-        # Confusion matrix for the Hungarian mapping
         conf_df = pd.DataFrame(
             confusion_matrix(y_true, y_pred_mapped, labels=all_labels),
             index=[f"True: {name_map.get(i, f'Phase_{i}')}" for i in all_labels],
@@ -1577,13 +1664,16 @@ def evaluate_clustering_metrics(coord_dict, coord_to_label, name_map, cluster_na
         )
         print(conf_df)
 
-    
+    # 9) Return
     return {
         "metrics": metrics,
-        "user_mapping": cluster_name_map,
-        "optimal_mapping": mapping,
+        "user_mapping": cluster_name_map if cluster_name_map else {},
+        "mapping": mapping,
+        "optimal_mapping": mapping,  # for backward compatibility
+        "mapping_names": {cid: name_map.get(pid, "Unknown") 
+                      for cid, pid in mapping.items()},  # cluster_id -> phase_name
         "confusion_matrix": confusion_matrix(y_true, y_pred_mapped),
-        "detailed_results": df
+        "detailed_results": df,
     }
     
 

@@ -1080,7 +1080,7 @@ def plot_kam_with_learning_boundary(
         uniq = {}
         for h in legend_handles:
             uniq[h.get_label()] = h
-        ax.legend(handles=list(uniq.values()), loc="upper right", bbox_to_anchor=(1.05, 1),fontsize=9, frameon=True)
+        ax.legend(handles=list(uniq.values()), loc="upper right", bbox_to_anchor=(1.25, 1),fontsize=9, frameon=True)
 
     plt.tight_layout()
     plt.show()
