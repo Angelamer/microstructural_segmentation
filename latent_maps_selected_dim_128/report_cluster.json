@@ -1,0 +1,22 @@
+{
+  "top_latent_by_cluster": [
+    {
+      "dim": 0,
+      "score": 0.0,
+      "k_lat": 2,
+      "k_ref": 11
+    },
+    {
+      "dim": 1,
+      "score": 0.0,
+      "k_lat": 2,
+      "k_ref": 11
+    },
+    {
+      "dim": 2,
+      "score": 0.0,
+      "k_lat": 2,
+      "k_ref": 11
+    }
+  ]
+}

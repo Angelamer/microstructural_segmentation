@@ -30,20 +30,21 @@ if __name__ == "__main__":
     df = pd.read_csv("../ebsd_kikuchi/ebsd_processed_with_grain_boundary.csv")
     coord_phase_dict = coord_phase_dict_from_dataframe(df)
     
-    kikuchi_p = "../ebsd_kikuchi/20min_processed_signals.h5"
+    kikuchi_p = "/home/users/zhangqn8/storage/20min_processed_signals_fullimage.h5"
     # H, W = 400,500
     # roi_xrange = (200,400)
     # roi_yrange = (0,100)
     ds = KikuchiH5Dataset(kikuchi_p, normalize='minus_one_one')
     # Hyperparameter setting
-    latent_dim = 4
+    latent_dim = 64
     batch_size = 64
-    epochs = 40
+    epochs = 20
     learning_rate = 1e-3
     
     # device options
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # device = torch.device("cpu")
+    
     print(f"Using device: {device}")
     
     # --- Model instance ---
@@ -62,7 +63,9 @@ if __name__ == "__main__":
         shuffle=True,              # works now (map-style dataset)
         num_workers=4,             # tune for your I/O
         pin_memory=True,
-        persistent_workers=True
+        persistent_workers=True,
+        prefetch_factor=2,          # small, to avoid RAM spikes
+        multiprocessing_context="spawn",  # safer with h5py
     )
     
     # Data preparation
@@ -71,13 +74,11 @@ if __name__ == "__main__":
     print("IMPORTANT: Input data assumed to be normalized to [-1, 1] for Tanh output.")
     
     
-    train_vae(dataloader, model, device, optimizer, epochs)
+    train_vae(dataloader, model, device, optimizer, epochs, save_path=f"vae_model_for_full_data_dim_{latent_dim}.pth")
     
     # kikuchi Pattern reconstruction and display part of them
     # reconstruct_and_visualize(model, device, dataloader, 5)
     
-    
-    # latents, all_labels, all_x_indices, all_y_indices =get_latent_features(model, dataloader, device, coord_phase_dict, None, False)
     
     # Latent space decomposition: select n samples for visualization
     # print("\n--- Visualizing Latent Space (using cNMF) ---")

@@ -270,99 +270,99 @@ def coord_xmap_dict(xmap, step=0.05):
         ix, iy = self.indices[idx]
         return (ix, iy), image
 
-# class KikuchiParquetDataset(Dataset):
-    """
-    Dataset for Parquet produced by get_processed_signals_local():
-      columns: x (int), y (int), features (list<float>, length = H*W)
+# # class KikuchiParquetDataset(Dataset):
+#     """
+#     Dataset for Parquet produced by get_processed_signals_local():
+#       columns: x (int), y (int), features (list<float>, length = H*W)
 
-    Parameters
-    ----------
-    parquet_path : str
-        Path to the .parquet file (e.g., "20min_processed_signals.parquet").
-    H, W : int
-        Pattern height and width used when saving (reshape target).
-    normalize : {'none','zero_one','minus_one_one'}, default 'minus_one_one'
-        Apply optional intensity scaling to features BEFORE reshaping:
-          - 'none'           : no change (assume already scaled)
-          - 'zero_one'       : min-max per sample -> [0,1]
-          - 'minus_one_one'  : min-max per sample -> [-1,1]
-        (Use 'none' if your features are already in [-1,1] to avoid double scaling.)
-    dtype : np.dtype
-        dtype for the tensor; float32 recommended.
-    """
+#     Parameters
+#     ----------
+#     parquet_path : str
+#         Path to the .parquet file (e.g., "20min_processed_signals.parquet").
+#     H, W : int
+#         Pattern height and width used when saving (reshape target).
+#     normalize : {'none','zero_one','minus_one_one'}, default 'minus_one_one'
+#         Apply optional intensity scaling to features BEFORE reshaping:
+#           - 'none'           : no change (assume already scaled)
+#           - 'zero_one'       : min-max per sample -> [0,1]
+#           - 'minus_one_one'  : min-max per sample -> [-1,1]
+#         (Use 'none' if your features are already in [-1,1] to avoid double scaling.)
+#     dtype : np.dtype
+#         dtype for the tensor; float32 recommended.
+#     """
 
-    def __init__(self, parquet_path, H, W,
-                 normalize='minus_one_one',
-                 dtype=np.float32):
-        super().__init__()
-        self.parquet_path = parquet_path
-        self.H, self.W = int(H), int(W)
-        self.normalize = normalize
-        self.dtype = dtype
+#     def __init__(self, parquet_path, H, W,
+#                  normalize='minus_one_one',
+#                  dtype=np.float32):
+#         super().__init__()
+#         self.parquet_path = parquet_path
+#         self.H, self.W = int(H), int(W)
+#         self.normalize = normalize
+#         self.dtype = dtype
 
-        # Read the entire parquet file into memory
-        self.df = pd.read_parquet(parquet_path)
-        self.N = len(self.df)
+#         # Read the entire parquet file into memory
+#         self.df = pd.read_parquet(parquet_path)
+#         self.N = len(self.df)
         
-        print(f"Loaded {self.N} samples from {parquet_path}")
+#         print(f"Loaded {self.N} samples from {parquet_path}")
 
-    def __len__(self):
-        return self.N
+#     def __len__(self):
+#         return self.N
 
     
-    @staticmethod
-    def _minmax_scale(arr, mode):
-        if mode == 'none':
-            return arr
-        a = arr.astype(np.float32, copy=False)
-        amin = a.min()
-        amax = a.max()
-        if not np.isfinite(amin) or not np.isfinite(amax) or amax <= amin:
-            # degenerate; just return zeros to avoid NaNs
-            return np.zeros_like(a, dtype=np.float32)
-        if mode == 'zero_one':
-            return (a - amin) / (amax - amin)
-        elif mode == 'minus_one_one':
-            a01 = (a - amin) / (amax - amin)
-            return a01 * 2.0 - 1.0
-        else:
-            return a
+#     @staticmethod
+#     def _minmax_scale(arr, mode):
+#         if mode == 'none':
+#             return arr
+#         a = arr.astype(np.float32, copy=False)
+#         amin = a.min()
+#         amax = a.max()
+#         if not np.isfinite(amin) or not np.isfinite(amax) or amax <= amin:
+#             # degenerate; just return zeros to avoid NaNs
+#             return np.zeros_like(a, dtype=np.float32)
+#         if mode == 'zero_one':
+#             return (a - amin) / (amax - amin)
+#         elif mode == 'minus_one_one':
+#             a01 = (a - amin) / (amax - amin)
+#             return a01 * 2.0 - 1.0
+#         else:
+#             return a
 
-    def __getitem__(self, idx):
-        if idx < 0:
-            idx = self.N + idx
-        if idx < 0 or idx >= self.N:
-            raise IndexError(idx)
+#     def __getitem__(self, idx):
+#         if idx < 0:
+#             idx = self.N + idx
+#         if idx < 0 or idx >= self.N:
+#             raise IndexError(idx)
 
-        # Get the row directly from the pandas DataFrame
-        row = self.df.iloc[idx]
-        x = int(row['x'])
-        y = int(row['y'])
+#         # Get the row directly from the pandas DataFrame
+#         row = self.df.iloc[idx]
+#         x = int(row['x'])
+#         y = int(row['y'])
         
-        # Handle both list and numpy array formats for features
-        if hasattr(row['features'], '__array__'):
-            feats = np.asarray(row['features'], dtype=self.dtype)
-        else:
-            feats = np.array(row['features'], dtype=self.dtype)
+#         # Handle both list and numpy array formats for features
+#         if hasattr(row['features'], '__array__'):
+#             feats = np.asarray(row['features'], dtype=self.dtype)
+#         else:
+#             feats = np.array(row['features'], dtype=self.dtype)
             
-        # Optional scaling
-        feats = self._minmax_scale(feats, self.normalize)
+#         # Optional scaling
+#         feats = self._minmax_scale(feats, self.normalize)
 
-        # Reshape to (1, H, W)
-        if feats.size != self.H * self.W:
-            warnings.warn(f"Row {idx}: features length {feats.size} != H*W {self.H*self.W}. "
-                         f"Resizing with interpolation.")
-            # Resize using interpolation if the size doesn't match
-            feats = feats.reshape(-1, 1)  # Make it 2D for resize
-            feats = torch.from_numpy(feats).unsqueeze(0)  # Add channel dimension
-            feats = torch.nn.functional.interpolate(feats, size=(self.H, self.W), mode='bilinear')
-            feats = feats.squeeze(0).numpy()
-        else:
-            feats = feats.reshape(1, self.H, self.W)
+#         # Reshape to (1, H, W)
+#         if feats.size != self.H * self.W:
+#             warnings.warn(f"Row {idx}: features length {feats.size} != H*W {self.H*self.W}. "
+#                          f"Resizing with interpolation.")
+#             # Resize using interpolation if the size doesn't match
+#             feats = feats.reshape(-1, 1)  # Make it 2D for resize
+#             feats = torch.from_numpy(feats).unsqueeze(0)  # Add channel dimension
+#             feats = torch.nn.functional.interpolate(feats, size=(self.H, self.W), mode='bilinear')
+#             feats = feats.squeeze(0).numpy()
+#         else:
+#             feats = feats.reshape(1, self.H, self.W)
 
-        # To tensor
-        img_t = torch.from_numpy(feats)
-        return (x, y), img_t
+#         # To tensor
+#         img_t = torch.from_numpy(feats)
+#         return (x, y), img_t
     
     
 class KikuchiH5Dataset(Dataset):
@@ -373,7 +373,7 @@ class KikuchiH5Dataset(Dataset):
 
     Returns: ((x, y), torch.FloatTensor of shape (1, H, W))
     """
-    def __init__(self, h5_path, normalize="none", dtype=np.float32, use_swmr=True):
+    def __init__(self, h5_path, normalize="none", dtype=np.float32, use_swmr=False):
         """
         Args:
           h5_path   : path to HDF5 file
