@@ -29,7 +29,7 @@ if __name__ == "__main__":
     df = pd.read_csv("../ebsd_kikuchi/ebsd_processed_with_grain_boundary.csv")
     coord_phase_dict = coord_phase_dict_from_dataframe(df)
     # Hyperparameter setting
-    latent_dim = 256
+    latent_dim = 64
     batch_size = 64
     # epochs = 40
     learning_rate = 1e-3
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         _ = model(warm_batch)
 
     # load weights
-    state = torch.load("vae_model_for_full_data_dim_256.pth", map_location=device)
+    state = torch.load("vae_model_for_full_data_dim_64.pth", map_location=device)
     model.load_state_dict(state)
     model.eval()
     
