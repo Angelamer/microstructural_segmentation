@@ -12,13 +12,13 @@ class VAE(nn.Module):
     to the recorded sizes. Fully-connected layers are lazily initialized from
     the first batch so any H,W works (as long as all batches use the same H,W).
     """
-    def __init__(self, latent_dim=16, base_channels=32, n_down=5, upsample_mode="nearest"):
+    def __init__(self, latent_dim=16, base_channels=32, n_down=5, upsample_mode="nearest", output_mode="minus_one_one"):
         super().__init__()
         self.latent_dim = latent_dim
         self.base = base_channels
         self.n_down = n_down
         self.upsample_mode = upsample_mode  # 'nearest' or 'bilinear'
-
+        self.output_mode = output_mode
         # ----- Encoder: Conv + LeakyReLU, stride=2 -----
         enc = []
         in_c = 1
@@ -51,10 +51,19 @@ class VAE(nn.Module):
                     nn.LeakyReLU(0.2, inplace=True),
                 )
             )
+        # Output head: choose activation by output_mode
+        if output_mode == "minus_one_one":
+            act = nn.Tanh()
+        elif output_mode == "zero_one":
+            act = nn.Sigmoid()
+        elif output_mode == "none":
+            act = nn.Identity()
+        else:
+            raise ValueError("output_mode must be 'minus_one_one' | 'zero_one' | 'none'.")
 
         self.out_head = nn.Sequential(
             nn.Conv2d(self.base, 1, kernel_size=3, padding=1),
-            nn.Tanh()
+            act
         )
 
         self._enc_shapes = None  # [(H0,W0), (H1,W1), ..., (Hn,Wn)]
@@ -222,8 +231,8 @@ def train_vae(
 
             if (batch_idx % log_every) == 0:
                 print(f"Epoch [{epoch+1}/{num_epochs}] "
-                      f"Batch {batch_idx+1}  "
-                      f"loss/b: {loss.item():.4f}  mse/b: {mse_loss.item():.4f}  kld/b: {kl_loss.item():.4f}")
+                    f"Batch {batch_idx+1}  "
+                    f"loss/b: {loss.item():.4f}  mse/b: {mse_loss.item():.4f}  kld/b: {kl_loss.item():.4f}")
 
         if n_seen == 0:
             print(f"Epoch {epoch+1}: no samples seen.")

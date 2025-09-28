@@ -368,18 +368,18 @@ def coord_xmap_dict(xmap, step=0.05):
 class KikuchiH5Dataset(Dataset):
     """
     Map-style dataset for an HDF5 written as:
-      /images : float32, shape (N, 1, H, W)  (or (N, H, W) also supported)
-      /coords : int32,   shape (N, 2)        -> [x, y] per sample
+    /images : float32, shape (N, 1, H, W)  (or (N, H, W) also supported)
+    /coords : int32,   shape (N, 2)        -> [x, y] per sample
 
     Returns: ((x, y), torch.FloatTensor of shape (1, H, W))
     """
     def __init__(self, h5_path, normalize="none", dtype=np.float32, use_swmr=False):
         """
         Args:
-          h5_path   : path to HDF5 file
-          normalize : 'none' | 'zero_one' | 'minus_one_one' (per-sample min-max)
-          dtype     : numpy dtype to read images as (usually np.float32)
-          use_swmr  : open file in SWMR read mode for multi-worker dataloaders
+        h5_path   : path to HDF5 file
+        normalize : 'none' | 'zero_one' | 'minus_one_one' (per-sample min-max)
+        dtype     : numpy dtype to read images as (usually np.float32)
+        use_swmr  : open file in SWMR read mode for multi-worker dataloaders
         """
         self.h5_path = h5_path
         self.normalize = normalize
@@ -467,3 +467,43 @@ class KikuchiH5Dataset(Dataset):
         except Exception:
             pass
 
+def load_keep_xy_from_bandcontrast(csv_path, threshold, keep_below=True):
+    """
+    Read CSV with columns: x, y, bandcontrast.
+    Return a set of coords {(x,y),...} to KEEP.
+    keep_below=True  -> keep rows with bandcontrast <= threshold
+    keep_below=False -> keep rows with bandcontrast >  threshold
+    """
+    df = pd.read_csv(csv_path)
+    # robust col picking
+    df.columns = [c.strip().lower() for c in df.columns]
+    cx = "x"; cy = "y"
+    cb = "bandcontrast" if "bandcontrast" in df.columns else "band_contrast"
+    if keep_below:
+        m = df[cb] <= threshold
+    else:
+        m = df[cb] > threshold
+    keep_xy = {(int(x), int(y)) for x, y in zip(df.loc[m, cx], df.loc[m, cy])}
+    return keep_xy
+
+class FilterByCoordsDataset(Dataset):
+    """
+    Wraps KikuchiH5Dataset to only expose items whose (x,y) are in keep_xy_set.
+    """
+    def __init__(self, base: KikuchiH5Dataset, keep_xy_set):
+        self.base = base
+        # read all coords once to build an index list
+        with h5py.File(base.h5_path, "r") as f:
+            coords = f["coords"][...]  # (N,2)
+        self.keep_indices = [
+            i for i, (x, y) in enumerate(coords)
+            if (int(x), int(y)) in keep_xy_set
+        ]
+        self.N = len(self.keep_indices)
+        if self.N == 0:
+            raise RuntimeError("No samples matched keep_xy_set.")
+
+    def __len__(self): return self.N
+
+    def __getitem__(self, i):
+        return self.base[self.keep_indices[i]]

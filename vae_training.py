@@ -4,7 +4,7 @@ from orix import io
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from data_prepare import KikuchiH5Dataset, coord_phase_dict_from_dataframe
+from data_prepare import KikuchiH5Dataset, FilterByCoordsDataset,coord_phase_dict_from_dataframe, load_keep_xy_from_bandcontrast
 from vae_cnn import VAE, train_vae
 from reconstruct_visualization import reconstruct_and_visualize, latent_space_visualize, visualize_latent_maps, get_latent_features
 import os
@@ -27,14 +27,16 @@ if __name__ == "__main__":
     
     # coord, image= dataset.__getitem__(1)
     # print(np.shape(image))
-    df = pd.read_csv("../ebsd_kikuchi/ebsd_processed_with_grain_boundary.csv")
+    df = pd.read_csv("~/workflow/process_experiment_data/ebsd_processed_with_grain_boundary.csv")
     coord_phase_dict = coord_phase_dict_from_dataframe(df)
     
     kikuchi_p = "/home/users/zhangqn8/storage/20min_processed_signals_fullimage.h5"
     # H, W = 400,500
     # roi_xrange = (200,400)
     # roi_yrange = (0,100)
+    keep_xy = load_keep_xy_from_bandcontrast("~/workflow/process_experiment_data/20min_bandcontrast.csv", threshold=45, keep_below=False)
     ds = KikuchiH5Dataset(kikuchi_p, normalize='minus_one_one')
+    ds_p = FilterByCoordsDataset(ds, keep_xy)
     # Hyperparameter setting
     latent_dim = 64
     batch_size = 64
@@ -58,7 +60,7 @@ if __name__ == "__main__":
     
 
     dataloader = DataLoader(
-        ds,
+        ds_p,
         batch_size=batch_size,
         shuffle=True,              # works now (map-style dataset)
         num_workers=4,             # tune for your I/O
@@ -74,7 +76,7 @@ if __name__ == "__main__":
     print("IMPORTANT: Input data assumed to be normalized to [-1, 1] for Tanh output.")
     
     
-    train_vae(dataloader, model, device, optimizer, epochs, save_path=f"vae_model_for_full_data_dim_{latent_dim}.pth")
+    train_vae(dataloader, model, device, optimizer, epochs, save_path=f"vae_model_for_filtered_bc_data_dim_{latent_dim}.pth")
     
     # kikuchi Pattern reconstruction and display part of them
     # reconstruct_and_visualize(model, device, dataloader, 5)

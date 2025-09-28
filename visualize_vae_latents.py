@@ -1,13 +1,11 @@
-from data_prepare import KikuchiH5Dataset, coord_phase_dict_from_dataframe
+from data_prepare import KikuchiH5Dataset, FilterByCoordsDataset,coord_phase_dict_from_dataframe, load_keep_xy_from_bandcontrast
 import torch
 from torch.utils.data import DataLoader
 from vae_cnn import VAE
-from reconstruct_visualization import get_latent_features, visualize_latent_maps
+from reconstruct_visualization import get_latent_features, visualize_latent_maps, collect_latents_to_dict, read_all_coords, assemble_full_latents
 import pandas as pd
-from latent_map_selection import (
-    load_feature_csv, load_elements_csv,
-    run_latent_vs_pca_cnmf_gmm, run_latent_vs_elements
-)
+from latent_map_selection import (load_feature_csv, load_elements_csv, run_latent_vs_pca_cnmf_gmm, run_latent_vs_elements,
+                                load_bandcontrast_csv, run_latent_vs_bandcontrast)
 import numpy as np
 import os
 import pandas as pd
@@ -26,7 +24,7 @@ if __name__ == "__main__":
     
     # coord, image= dataset.__getitem__(1)
     # print(np.shape(image))
-    df = pd.read_csv("../ebsd_kikuchi/ebsd_processed_with_grain_boundary.csv")
+    df = pd.read_csv("~/workflow/process_experiment_data/ebsd_processed_with_grain_boundary.csv")
     coord_phase_dict = coord_phase_dict_from_dataframe(df)
     # Hyperparameter setting
     latent_dim = 64
@@ -38,8 +36,12 @@ if __name__ == "__main__":
     # roi_xrange = (250,300)
     # roi_yrange = (30,70)
     ds = KikuchiH5Dataset(kikuchi_p, normalize='minus_one_one')
+    keep_xy = load_keep_xy_from_bandcontrast("~/workflow/process_experiment_data/20min_bandcontrast.csv", threshold=45, keep_below=False)
+    ds = KikuchiH5Dataset(kikuchi_p, normalize='minus_one_one')
+    ds_p = FilterByCoordsDataset(ds, keep_xy)
+    
     dataloader = DataLoader(
-        ds,
+        ds_p,
         batch_size=batch_size,
         shuffle=True,              # works now (map-style dataset)
         num_workers=4,             # tune for your I/O
@@ -65,9 +67,9 @@ if __name__ == "__main__":
         _ = model(warm_batch)
 
     # load weights
-    state = torch.load("vae_model_for_full_data_dim_64.pth", map_location=device)
+    state = torch.load("vae_model_for_filtered_bc_data_dim_64.pth", map_location=device)
     model.load_state_dict(state)
-    model.eval()
+    # model.eval()
     
     
     
@@ -75,7 +77,16 @@ if __name__ == "__main__":
     # reconstruct_and_visualize(model, device, dataloader, 5)
     
     
-    latents, all_labels, all_x_indices, all_y_indices =get_latent_features(model, dataloader, device, coord_phase_dict, None, False)
+    # latents, all_labels, all_x_indices, all_y_indices =get_latent_features(model, dataloader, device, coord_phase_dict, None, False)
+    # Collect latents only for trained coords
+    latent_dict = collect_latents_to_dict(model, dataloader, device)
+
+    # Assemble full-field latents (NaN elsewhere)
+    all_coords = read_all_coords(ds.h5_path)
+    xs_all = [x for x,y in all_coords]
+    ys_all = [y for x,y in all_coords]
+    L = assemble_full_latents(latent_dict, all_coords, latent_dim=model.latent_dim, fill_value=np.nan)
+
     # print(all_x_indices)
     # Latent space decomposition: select n samples for visualization
     # print("\n--- Visualizing Latent Space (using cNMF) ---")
@@ -97,70 +108,100 @@ if __name__ == "__main__":
     # roi_yrange=None
     # )
     
-    xs_all = np.asarray(all_x_indices, dtype=int)
-    ys_all = np.asarray(all_y_indices, dtype=int)
+    # xs_all = np.asarray(all_x_indices, dtype=int)
+    # ys_all = np.asarray(all_y_indices, dtype=int)
     
-    pca_coords, pca_feats, pca_cols = load_feature_csv("/home/users/zhangqn8/workflow/ebsd_kikuchi/20min_pca_scores.csv", prefix="PCA_")
+    # pca_coords, pca_feats, pca_cols = load_feature_csv("/home/users/zhangqn8/workflow/ebsd_kikuchi/20min_pca_scores.csv", prefix="PCA_")
 
-    out_dir = f"latent_maps_selected_dim_{latent_dim}/"
+    out_dir = f"latent_maps_filtered_selected_dim_{latent_dim}/"
     os.makedirs(out_dir, exist_ok=True)
 
-    figs1, rep1 = run_latent_vs_pca_cnmf_gmm(
-        out_dir=out_dir,
-        latents=latents,
-        xs_all=np.asarray(xs_all, dtype=int),
-        ys_all=np.asarray(ys_all, dtype=int),
-        roi_coords=pca_coords,
-        roi_feats=pca_feats,
-        kmin=2, kmax=12, criterion="bic", metric="ari", topn=3, seed=0
-    )
-    print(rep1)
+    # figs1, rep1 = run_latent_vs_pca_cnmf_gmm(
+    #     out_dir=out_dir,
+    #     latents=latents,
+    #     xs_all=np.asarray(xs_all, dtype=int),
+    #     ys_all=np.asarray(ys_all, dtype=int),
+    #     roi_coords=pca_coords,
+    #     roi_feats=pca_feats,
+    #     kmin=2, kmax=12, criterion="bic", metric="ari", topn=3, seed=0
+    # )
+    # print(rep1)
     
-    cnmf_coords, cnmf_feats, cnmf_cols = load_feature_csv("/home/users/zhangqn8/workflow/ebsd_kikuchi/20min_cnmf_weights.csv", prefix="cNMF_")
-    figs2, rep2 = run_latent_vs_pca_cnmf_gmm(
-        out_dir=out_dir,
-        latents=latents,
-        xs_all=np.asarray(xs_all, dtype=int),
-        ys_all=np.asarray(ys_all, dtype=int),
-        roi_coords=cnmf_coords,
-        roi_feats=cnmf_feats,
-        kmin=2, kmax=12, criterion="bic", metric="ari", topn=3, seed=0
-    )
-    print(rep2)
+    # cnmf_coords, cnmf_feats, cnmf_cols = load_feature_csv("/home/users/zhangqn8/workflow/ebsd_kikuchi/20min_cnmf_weights.csv", prefix="cNMF_")
+    # figs2, rep2 = run_latent_vs_pca_cnmf_gmm(
+    #     out_dir=out_dir,
+    #     latents=latents,
+    #     xs_all=np.asarray(xs_all, dtype=int),
+    #     ys_all=np.asarray(ys_all, dtype=int),
+    #     roi_coords=cnmf_coords,
+    #     roi_feats=cnmf_feats,
+    #     kmin=2, kmax=12, criterion="bic", metric="ari", topn=3, seed=0
+    # )
+    # print(rep2)
+    # -------------------------------
+    # Element vs latent features
+    # -------------------------------
+    # elem_coords_all, elem_values_all, elem_names = load_elements_csv("~/workflow/process_experiment_data/20min_element_map_valid.csv")
+    # roi_xrange = (200,400)
+    # roi_yrange = (0,100)
+    # # (i) SUM mode: normalized per-channel, then (optionally weighted) sum
+    # figs3, rep3 = run_latent_vs_elements(
+    #     out_dir=out_dir,
+    #     latents=L,
+    #     xs_all=np.asarray(xs_all, dtype=int),
+    #     ys_all=np.asarray(ys_all, dtype=int),
+    #     elem_coords_all=elem_coords_all,
+    #     elem_values_all=elem_values_all,   # shape (N,E)
+    #     elem_names=elem_names,
+    #     roi_xrange=roi_xrange,
+    #     roi_yrange=roi_yrange,
+    #     synth_mode="sum",
+    #     weights=None,rgb_elements=None,                      # or np.array of length E if you want to emphasize some elements
+    #     topn=3
+    # )
+    # print(rep3)
     
-    elem_coords_all, elem_values_all, elem_names = load_elements_csv("/home/users/zhangqn8/workflow/ebsd_kikuchi/20min_element_maps.csv")
-    roi_xrange = (200,400)
-    roi_yrange = (0,100)
-    # (i) SUM mode: normalized per-channel, then (optionally weighted) sum
-    figs3, rep3 = run_latent_vs_elements(
+    
+    # # (ii) RGB mode (optional): e.g., Fe->R, Ni->G, O->B (provide indices into elem_names)
+    # # Example: find indices quickly
+    # elem_idx = {name:i for i,name in enumerate(elem_names)}
+    # rgb_ids = [elem_idx["Fe"], elem_idx["Al"], elem_idx["O"]]
+    # figs4, rep4 = run_latent_vs_elements(
+    #     out_dir=out_dir, latents=L,
+    #     xs_all=np.asarray(xs_all, dtype=int), ys_all=np.asarray(ys_all, dtype=int),
+    #     elem_coords_all=elem_coords_all, elem_values_all=elem_values_all, elem_names=elem_names,
+    #     roi_xrange=roi_xrange, roi_yrange=roi_yrange,
+    #     synth_mode="rgb", rgb_elements=rgb_ids, topn=3
+    # )
+    # print(rep4)
+    
+    
+    # -------------------------------
+    # BandContrast vs latent features
+    # -------------------------------
+    bc_coords_all, bc_values_all = load_bandcontrast_csv(
+        "/home/users/zhangqn8/workflow/process_experiment_data/20min_bandcontrast.csv"
+    )
+
+    roi_xrange = (200, 400)
+    roi_yrange = (0, 100)
+
+    figs_bc, rep_bc = run_latent_vs_bandcontrast(
         out_dir=out_dir,
-        latents=latents,
+        latents=L,                                # (N_all, D) with NaNs for untrained
         xs_all=np.asarray(xs_all, dtype=int),
         ys_all=np.asarray(ys_all, dtype=int),
-        elem_coords_all=elem_coords_all,
-        elem_values_all=elem_values_all,   # shape (N,E)
-        elem_names=elem_names,
+        bc_coords_all=bc_coords_all,
+        bc_values_all=bc_values_all,
         roi_xrange=roi_xrange,
         roi_yrange=roi_yrange,
-        synth_mode="sum",
-        weights=None,                      # or np.array of length E if you want to emphasize some elements
-        topn=3
+        topn=3,
+        metrics=("pearson","spearman","kendall","mi","dcorr","hsic","pp_spatial"),
+        bad_color="black"
     )
-    print(rep3)
-    
-    
-    # (ii) RGB mode (optional): e.g., Fe->R, Ni->G, O->B (provide indices into elem_names)
-    # Example: find indices quickly
-    elem_idx = {name:i for i,name in enumerate(elem_names)}
-    rgb_ids = [elem_idx["Fe"], elem_idx["Al"], elem_idx["O"]]
-    figs4, rep4 = run_latent_vs_elements(
-        out_dir=out_dir, latents=latents,
-        xs_all=np.asarray(xs_all, dtype=int), ys_all=np.asarray(ys_all, dtype=int),
-        elem_coords_all=elem_coords_all, elem_values_all=elem_values_all, elem_names=elem_names,
-        roi_xrange=roi_xrange, roi_yrange=roi_yrange,
-        synth_mode="rgb", rgb_elements=rgb_ids, topn=3
-    )
-    print(rep4)
+    print(rep_bc)
 
+
+    
     
     

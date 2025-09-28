@@ -5,6 +5,8 @@ from constrainedmf.nmf.models import NMF
 import numpy as np
 import torch
 import os
+import h5py
+import pandas as pd
 import matplotlib.patches as mpatches
 
 @torch.no_grad()
@@ -94,6 +96,95 @@ def get_latent_features(model, dataloader, device, phase_dict=None, max_points=N
     if return_logvar:
         return latents, labels, xs_all, ys_all, logvars
     return latents, labels, xs_all, ys_all
+
+def collect_latents_to_dict(model, dataloader, device):
+    """
+    Runs model.encode() on the given dataloader, returning a dict:
+    {(x,y): latent_mu_vector}
+    Only includes coords that appeared in dataloader.
+    """
+    model.eval()
+    d = {}
+    with torch.no_grad():
+        for batch in dataloader:
+            (xb, yb), data = batch
+            data = data.to(device, dtype=torch.float32, non_blocking=True)
+            mu, _ = model.encode(data)
+            mu = mu.detach().cpu().numpy().astype(np.float32)
+            xs = xb.cpu().numpy().astype(int)
+            ys = yb.cpu().numpy().astype(int)
+            for v, x, y in zip(mu, xs, ys):
+                d[(int(x), int(y))] = v
+    return d
+
+def read_all_coords(h5_path):
+    with h5py.File(h5_path, "r") as f:
+        coords = f["coords"][...].astype(int)
+    return [tuple(map(int, xy)) for xy in coords]  # list of (x,y)
+
+def assemble_full_latents(latent_dict, all_coords, latent_dim, fill_value=np.nan):
+    """
+    all_coords: list of (x,y) in the same order as /coords in H5.
+    Returns L: (N, D) with NaN for coords not present in latent_dict.
+    """
+    N = len(all_coords)
+    L = np.full((N, latent_dim), fill_value, dtype=np.float32)
+    for i, xy in enumerate(all_coords):
+        v = latent_dict.get((int(xy[0]), int(xy[1])))
+        if v is not None:
+            L[i] = v
+    return L
+
+
+def save_full_latent_map(save_dir, tag, xs_all, ys_all, values_full, cmap="RdBu", bad_color="black"):
+    """
+    Renders NaNs as a solid 'bad_color' (e.g., 'black' or 'white').
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    xs = np.asarray(xs_all, dtype=int)
+    ys = np.asarray(ys_all, dtype=int)
+    v  = np.asarray(values_full, dtype=np.float32)
+
+    # Mask invalid values
+    vmask = np.ma.masked_invalid(v)
+    cmap_obj = plt.get_cmap(cmap).copy()
+    cmap_obj.set_bad(bad_color)  # <- key line
+
+    # Decide grid vs scatter
+    Xuniq = np.unique(xs); Yuniq = np.unique(ys)
+    all_pairs = {(int(x), int(y)) for x in Xuniq for y in Yuniq}
+    coords = {(int(x), int(y)) for x, y in zip(xs, ys)}
+    full_grid = (coords == all_pairs) and (len(coords) == len(Xuniq) * len(Yuniq))
+
+    fig, ax = plt.subplots(1, 1, figsize=(7, 6), dpi=300)
+    if full_grid:
+        Xsorted = np.sort(Xuniq); Ysorted = np.sort(Yuniq)
+        H, W = len(Ysorted), len(Xsorted)
+        grid = np.full((H, W), np.nan, dtype=np.float32)
+        x_pos = {x:i for i,x in enumerate(Xsorted)}
+        y_pos = {y:i for i,y in enumerate(Ysorted)}
+        for x, y, val in zip(xs, ys, v):
+            grid[y_pos[int(y)], x_pos[int(x)]] = val
+        im = ax.imshow(np.ma.masked_invalid(grid), origin="upper", cmap=cmap_obj, aspect="auto")
+        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    else:
+        sc = ax.scatter(xs, ys, c=vmask, s=4, cmap=cmap_obj, linewidths=0)
+        plt.colorbar(sc, ax=ax, fraction=0.046, pad=0.04)
+        ax.invert_yaxis()
+
+    ax.set_title(f"Latent map (full) — {tag}")
+    ax.set_xlabel("x"); ax.set_ylabel("y")
+    ax.set_aspect('equal', adjustable='box')
+    fig.tight_layout()
+    out = os.path.join(save_dir, f"latent_full_{tag}.png")
+    fig.savefig(out, bbox_inches="tight")
+    plt.close(fig)
+
+    # Also CSV if you like
+    df = pd.DataFrame({"x": xs, "y": ys, f"latent_{tag}": v})
+    df.to_csv(os.path.join(save_dir, f"latent_full_{tag}.csv"), index=False)
+    return out
+
 
 # --- Image Reconstruction Visualization ---
 def reconstruct_and_visualize(model, device, dataloader, num_images=5):
