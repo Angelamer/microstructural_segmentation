@@ -9,6 +9,7 @@ from latent_map_selection import (load_feature_csv, load_elements_csv, run_laten
 import numpy as np
 import os
 import pandas as pd
+from apply_journal_style import apply_journal_style
 if __name__ == "__main__":
     # select the Kikuchi Patterns within ROI
     # selected_files = filter_files_by_coordinates(
@@ -27,7 +28,7 @@ if __name__ == "__main__":
     df = pd.read_csv("~/workflow/process_experiment_data/ebsd_processed_with_grain_boundary.csv")
     coord_phase_dict = coord_phase_dict_from_dataframe(df)
     # Hyperparameter setting
-    latent_dim = 64
+    latent_dim = 512
     batch_size = 64
     # epochs = 40
     learning_rate = 1e-3
@@ -67,7 +68,7 @@ if __name__ == "__main__":
         _ = model(warm_batch)
 
     # load weights
-    state = torch.load("vae_model_for_filtered_bc_data_dim_64.pth", map_location=device)
+    state = torch.load("vae_model_for_filtered_bc_data_dim_512.pth", map_location=device)
     model.load_state_dict(state)
     # model.eval()
     
@@ -112,13 +113,18 @@ if __name__ == "__main__":
     # ys_all = np.asarray(all_y_indices, dtype=int)
     
     # pca_coords, pca_feats, pca_cols = load_feature_csv("/home/users/zhangqn8/workflow/ebsd_kikuchi/20min_pca_scores.csv", prefix="PCA_")
-
-    out_dir = f"latent_maps_filtered_selected_dim_{latent_dim}/"
+    roi_xrange = (20, 90)
+    roi_yrange = (190, 260)
+    x_t = roi_xrange[0]
+    x_b = roi_xrange[1]
+    y_t = roi_yrange[0]
+    y_b = roi_yrange[1]
+    out_dir = f"latent_maps_filtered_selected_dim_{latent_dim}_x_{x_t}_{x_b}_y_{y_t}_{y_b}/"
     os.makedirs(out_dir, exist_ok=True)
 
     # figs1, rep1 = run_latent_vs_pca_cnmf_gmm(
     #     out_dir=out_dir,
-    #     latents=latents,
+    #     latents=L,
     #     xs_all=np.asarray(xs_all, dtype=int),
     #     ys_all=np.asarray(ys_all, dtype=int),
     #     roi_coords=pca_coords,
@@ -141,39 +147,37 @@ if __name__ == "__main__":
     # -------------------------------
     # Element vs latent features
     # -------------------------------
-    # elem_coords_all, elem_values_all, elem_names = load_elements_csv("~/workflow/process_experiment_data/20min_element_map_valid.csv")
-    # roi_xrange = (200,400)
-    # roi_yrange = (0,100)
-    # # (i) SUM mode: normalized per-channel, then (optionally weighted) sum
-    # figs3, rep3 = run_latent_vs_elements(
-    #     out_dir=out_dir,
-    #     latents=L,
-    #     xs_all=np.asarray(xs_all, dtype=int),
-    #     ys_all=np.asarray(ys_all, dtype=int),
-    #     elem_coords_all=elem_coords_all,
-    #     elem_values_all=elem_values_all,   # shape (N,E)
-    #     elem_names=elem_names,
-    #     roi_xrange=roi_xrange,
-    #     roi_yrange=roi_yrange,
-    #     synth_mode="sum",
-    #     weights=None,rgb_elements=None,                      # or np.array of length E if you want to emphasize some elements
-    #     topn=3
-    # )
-    # print(rep3)
+    elem_coords_all, elem_values_all, elem_names = load_elements_csv("~/workflow/process_experiment_data/20min_element_map_valid.csv")
+    # (i) SUM mode: normalized per-channel, then (optionally weighted) sum
+    figs3, rep3 = run_latent_vs_elements(
+        out_dir=out_dir,
+        latents=L,
+        xs_all=np.asarray(xs_all, dtype=int),
+        ys_all=np.asarray(ys_all, dtype=int),
+        elem_coords_all=elem_coords_all,
+        elem_values_all=elem_values_all,   # shape (N,E)
+        elem_names=elem_names,
+        roi_xrange=roi_xrange,
+        roi_yrange=roi_yrange,
+        synth_mode="sum",
+        weights=None,rgb_elements=None,                      # or np.array of length E if you want to emphasize some elements
+        topn=3
+    )
+    print(rep3)
     
     
-    # # (ii) RGB mode (optional): e.g., Fe->R, Ni->G, O->B (provide indices into elem_names)
-    # # Example: find indices quickly
-    # elem_idx = {name:i for i,name in enumerate(elem_names)}
-    # rgb_ids = [elem_idx["Fe"], elem_idx["Al"], elem_idx["O"]]
-    # figs4, rep4 = run_latent_vs_elements(
-    #     out_dir=out_dir, latents=L,
-    #     xs_all=np.asarray(xs_all, dtype=int), ys_all=np.asarray(ys_all, dtype=int),
-    #     elem_coords_all=elem_coords_all, elem_values_all=elem_values_all, elem_names=elem_names,
-    #     roi_xrange=roi_xrange, roi_yrange=roi_yrange,
-    #     synth_mode="rgb", rgb_elements=rgb_ids, topn=3
-    # )
-    # print(rep4)
+    # (ii) RGB mode (optional): e.g., Fe->R, Ni->G, O->B (provide indices into elem_names)
+    # Example: find indices quickly
+    elem_idx = {name:i for i,name in enumerate(elem_names)}
+    rgb_ids = [elem_idx["Fe"], elem_idx["Al"], elem_idx["O"]]
+    figs4, rep4 = run_latent_vs_elements(
+        out_dir=out_dir, latents=L,
+        xs_all=np.asarray(xs_all, dtype=int), ys_all=np.asarray(ys_all, dtype=int),
+        elem_coords_all=elem_coords_all, elem_values_all=elem_values_all, elem_names=elem_names,
+        roi_xrange=roi_xrange, roi_yrange=roi_yrange,
+        synth_mode="rgb", rgb_elements=rgb_ids, topn=3
+    )
+    print(rep4)
     
     
     # -------------------------------
@@ -182,9 +186,6 @@ if __name__ == "__main__":
     bc_coords_all, bc_values_all = load_bandcontrast_csv(
         "/home/users/zhangqn8/workflow/process_experiment_data/20min_bandcontrast.csv"
     )
-
-    roi_xrange = (200, 400)
-    roi_yrange = (0, 100)
 
     figs_bc, rep_bc = run_latent_vs_bandcontrast(
         out_dir=out_dir,

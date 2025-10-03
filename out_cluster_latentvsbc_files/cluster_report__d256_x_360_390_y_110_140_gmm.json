@@ -1,0 +1,23 @@
+{
+  "method": "gmm",
+  "k": 2,
+  "scores": {
+    "criterion": "bic",
+    "value": -2377.508375826818
+  },
+  "n_points": 900,
+  "figure": "out_dbscan_cluster_latentvsbc_files/cluster_latent_bc__d256_x_360_390_y_110_140_gmm.png",
+  "assignments_csv": "out_dbscan_cluster_latentvsbc_files/cluster_assignments__d256_x_360_390_y_110_140_gmm.csv",
+  "cluster_colors": [
+    "#d62728",
+    "#1f77b4",
+    "#2ca02c",
+    "#ff7f0e",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf"
+  ]
+}

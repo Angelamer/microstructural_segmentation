@@ -38,7 +38,7 @@ if __name__ == "__main__":
     ds = KikuchiH5Dataset(kikuchi_p, normalize='minus_one_one')
     ds_p = FilterByCoordsDataset(ds, keep_xy)
     # Hyperparameter setting
-    latent_dim = 64
+    latent_dim = 512
     batch_size = 64
     epochs = 20
     learning_rate = 1e-3

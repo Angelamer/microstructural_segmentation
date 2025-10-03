@@ -1,0 +1,20 @@
+{
+  "method": "dbscan",
+  "eps": 1.0000000024027205,
+  "min_samples": 20,
+  "n_points": 4900,
+  "figure": "out_dbscan_cluster_latentvsbc_files/cluster_latent_bc__d512_x_350_420_y_70_140_dbscan.png",
+  "assignments_csv": "out_dbscan_cluster_latentvsbc_files/cluster_assignments__d512_x_350_420_y_70_140_dbscan.csv",
+  "cluster_colors": [
+    "#d62728",
+    "#1f77b4",
+    "#2ca02c",
+    "#ff7f0e",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf"
+  ]
+}

@@ -382,10 +382,10 @@ def synthetic_element_map(
         raise ValueError("mode must be 'sum' or 'rgb'.")
 
 def plot_latent_vs_element(save_dir, tag, xs_roi, ys_roi,
-                        latent_vals_roi, elem_vals_roi, elem_name):
+                        latent_vals_roi, elem_vals_roi, elem_name, cmap = "gray"):
     os.makedirs(save_dir, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.5), dpi=300)
-    _grid_or_scatter(axes[0], xs_roi, ys_roi, latent_vals_roi, "Latent map (ROI)", cmap="RdBu")
+    _grid_or_scatter(axes[0], xs_roi, ys_roi, latent_vals_roi, "Latent map (ROI)", cmap=cmap)
     axes[1].scatter(latent_vals_roi, elem_vals_roi, s=6, alpha=0.7)
     axes[1].set_xlabel("latent value"); axes[1].set_ylabel(elem_name)
     good = np.isfinite(latent_vals_roi) & np.isfinite(elem_vals_roi)
@@ -561,12 +561,25 @@ def score_partial_pearson_spatial(x, y, xs, ys, poly_deg=1):
     r, _ = pearsonr(rx, ry)
     return float(r)
 
+def _slug(s: str) -> str:
+    """Safe tag for filenames."""
+    return (
+        str(s)
+        .replace(" ", "")
+        .replace("/", "-")
+        .replace("\\", "-")
+        .replace(",", "_")
+        .replace(";", "_")
+        .replace(":", "_")
+    )
+    
 def run_latent_vs_elements(
     out_dir,
     latents, xs_all, ys_all,
     elem_coords_all, elem_values_all, elem_names,
     roi_xrange=None, roi_yrange=None,
     synth_mode="sum", weights=None, rgb_elements=None,
+    cmap = "RdBu",
     topn=3,
     metrics=("pearson","spearman","kendall","mi","dcorr","hsic","pp_spatial"),
     bad_color="black"
@@ -584,7 +597,21 @@ def run_latent_vs_elements(
     src_idx, valid = align_indices_by_coords(xs_all, ys_all, elem_coords_all)
     xs_elem = elem_coords_all[:, 0].astype(int)
     ys_elem = elem_coords_all[:, 1].astype(int)
-
+    # ---------- Build a synthesis tag for filenames ----------
+    if synth_mode.lower() == "rgb":
+        if rgb_elements is None or len(rgb_elements) != 3:
+            raise ValueError("For synth_mode='rgb', provide rgb_elements as a 3-tuple of element names.")
+        # Ensure provided names exist
+        r, g, b = rgb_elements
+        synth_tag = f"rgb-{_slug(r)}_{_slug(g)}_{_slug(b)}"
+    else:
+        # sum mode
+        if weights is not None:
+            # compact weight tag (rounded to 3 decimals)
+            w_tag = "_".join([f"{w:.3f}" for w in np.asarray(weights).ravel().tolist()])
+            synth_tag = f"sum-{_slug(w_tag)}"
+        else:
+            synth_tag = "sum-auto"
     # Select ROI
     roi_mask = roi_mask_from_ranges(xs_elem, ys_elem, roi_xrange, roi_yrange)
     roi_mask &= valid  # must exist in latent set
@@ -647,30 +674,46 @@ def run_latent_vs_elements(
             if dim in seen:
                 continue
             seen.add(dim)
-            tag = f"d{dim}_{m}{(score if np.isfinite(score) else float('nan')):.3f}"
+            score_str = f"{(score if np.isfinite(score) else float('nan')):.3f}"
+            tag = f"{synth_tag}_d{dim}_{m}{score_str}"
 
-            # ROI Scatter Plot (latent vs element)+ ROI latent map
+            # ROI scatter + ROI latent map
             figs.append(
-                plot_latent_vs_element(out_dir, tag, xs_roi, ys_roi,
-                                    latents[idx, dim], scalar_map, elem_name=f"synthetic ({m})")
+                plot_latent_vs_element(
+                    out_dir, tag, xs_roi, ys_roi,
+                    latents[idx, dim], scalar_map, elem_name=f"synthetic({synth_mode}:{m})", cmap = cmap
+                )
             )
-            np.save(os.path.join(out_dir, f"latent_d{dim}_roi_vs_synth_{m}.npy"),
-                    latents[idx, dim].astype(np.float32))
+            # Save aligned latent vector for this ROI and dimension
+            np.save(
+                os.path.join(out_dir, f"{synth_tag}_latent_d{dim}_roi_vs_synth_{m}.npy"),
+                latents[idx, dim].astype(np.float32)
+            )
 
-            # Full-color image (NaN → pure black/white), reuse your save_full_latent_map (requires set_bad)
-            # This assumes save_full_latent_map already uses set_bad(bad_color)
-            save_full_latent_map(out_dir, f"d{dim}", xs_all, ys_all, latents[:, dim], cmap="RdBu", bad_color=bad_color)
-
+            # Full field latent image (uses tag prefix too)
+            save_full_latent_map(
+                out_dir, f"{synth_tag}_d{dim}", xs_all, ys_all,
+                latents[:, dim], cmap= cmap, bad_color=bad_color
+            )
     # —— Reports & CSV —— 
     report = {
+        "synth_mode": synth_mode,
+        "synth_tag": synth_tag,
         "roi": {"x_range": roi_xrange, "y_range": roi_yrange, "n": int(roi_mask.sum())},
         "metrics": list(metrics),
-        "rankings": {m: [{"dim": int(d), "score": (None if not np.isfinite(s) else float(s))} for d, s, _ in rankings[m]]
-                    for m in metrics}
+        "elements": list(elem_names),
+        "rgb_elements": (list(rgb_elements) if (synth_mode.lower()=="rgb" and rgb_elements is not None) else None),
+        "weights": (np.asarray(weights).ravel().tolist() if (synth_mode.lower()=="sum" and weights is not None) else None),
+        "rankings": {
+            m: [{"dim": int(d), "score": (None if not np.isfinite(s) else float(s))} for d, s, _ in rankings[m]]
+            for m in metrics
+        },
     }
-    with open(os.path.join(out_dir, "report_elements_multi_metric.json"), "w") as f:
-        json.dump(report, f, indent=2)
 
+    # Save JSON & CSV with synthesis tag in the filename
+    report_path = os.path.join(out_dir, f"report_elements_multi_metric__{synth_tag}.json")
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2)
     try:
         df = pd.DataFrame.from_records(records)
         # Sort reference order by |pearson| (can be changed)
@@ -765,6 +808,7 @@ def run_latent_vs_bandcontrast(
     bc_coords_all,             # (N_bc,2) int (x,y) from bandcontrast CSV
     bc_values_all,             # (N_bc,) float bandcontrast
     roi_xrange=None, roi_yrange=None,
+    cmap ="gray",
     topn=3,
     metrics=("pearson","spearman","kendall","mi","dcorr","hsic","pp_spatial"),
     bad_color="black"          
@@ -852,7 +896,7 @@ def run_latent_vs_bandcontrast(
             # ROI plot: latent map & scatter(latent vs BC)
             figs.append(
                 plot_latent_vs_element(out_dir, tag, xs_roi, ys_roi,
-                                    latents[idx, dim], bc_roi, elem_name="BandContrast")
+                                    latents[idx, dim], bc_roi, elem_name="BandContrast", cmap=cmap)
             )
             # Save ROI latent values and optionally full-field map
             np.save(os.path.join(out_dir, f"latent_d{dim}_roi_vs_bandcontrast_{m}.npy"),
@@ -860,7 +904,7 @@ def run_latent_vs_bandcontrast(
 
             # Full-field map for this latent dim (NaN shown as bad_color)
             save_full_latent_map(out_dir, f"d{dim}", xs_all, ys_all, latents[:, dim],
-                                cmap="RdBu", bad_color=bad_color)
+                                cmap=cmap, bad_color=bad_color)
 
     # ---- Report (JSON) and CSV of scores ----
     report = {
