@@ -479,18 +479,18 @@ def demo_from_files(
 if __name__ == "__main__":
     
     report = demo_from_files(
-    out_dir="out_dbscan_cluster_latentvsbc_files",
+    out_dir="out_cluster_latentvsbc_files",
     coords_csv="~/workflow/process_experiment_data/20min_bandcontrast.csv",           #  x,y；optional: bandcontrast
-    latent_roi_file="latent_maps_filtered_selected_dim_256_x_360_390_y_110_140/latent_d254_roi_vs_bandcontrast_pearson.npy",
+    latent_roi_file="latent_maps_filtered_selected_dim_512_x_350_420_y_70_140/latent_d40_roi_vs_bandcontrast_pearson.npy",
     bc_roi_file=None,                      # if coords_csv contains the bandcontrast, then None
     method="gmm",
-    # min_samples=10,
+    # min_samples=15,
     k=None,
     k_min=2,
     k_max=8,
-    roi_xrange=(360,390),
-    roi_yrange=(110,140),
-    tag="d256_x_360_390_y_110_140_gmm",
+    roi_xrange=(350,420),
+    roi_yrange=(70,140),
+    tag="d512_x_350_420_y_70_140_gmm",
     cluster_colors=["#d62728", "#1f77b4", "#2ca02c", "#ff7f0e", "#9467bd", 
                     "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",],
     )
