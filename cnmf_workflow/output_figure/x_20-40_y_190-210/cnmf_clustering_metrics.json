@@ -1,0 +1,5235 @@
+{
+  "metrics": {
+    "ARI": 0.8073971176998759,
+    "NMI": 0.6803851566752182,
+    "homogeneity": 0.7577454584381285,
+    "completeness": 0.6173574498339566,
+    "v_measure": 0.680385156675218,
+    "mapped_accuracy": 0.9525,
+    "mapping_mode": "Majority-vote",
+    "user_accuracy": null
+  },
+  "user_mapping": {},
+  "mapping": {
+    "0": 1,
+    "1": -1,
+    "2": -1
+  },
+  "mapping_names": {
+    "0": "Iron bcc (old)",
+    "1": "not_indexed",
+    "2": "not_indexed"
+  },
+  "confusion_matrix": [
+    [
+      105,
+      1
+    ],
+    [
+      18,
+      276
+    ]
+  ],
+  "detailed_results": [
+    {
+      "coordinate": [
+        20,
+        190
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        191
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        20,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        20,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        20,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        21,
+        190
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        21,
+        191
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        21,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        21,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        190
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        22,
+        191
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        22,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        22,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        190
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        191
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        23,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        190
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        191
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        24,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        190
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        191
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        25,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        190
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        191
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        26,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        190
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        191
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        27,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        192
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        28,
+        193
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        194
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        28,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        28,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        29,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        29,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        195
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        30,
+        196
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        30,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        30,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        197
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        31,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        197
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        198
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        32,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        197
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        198
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        33,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        33,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        33,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        197
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        198
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        199
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        34,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        34,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        34,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        197
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        198
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        199
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        200
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        35,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        35,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        197
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        198
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        199
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        200
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        201
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": false
+    },
+    {
+      "coordinate": [
+        36,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        36,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        197
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        198
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 1,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        199
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        200
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        201
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        202
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        37,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        197
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        198
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        199
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        200
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        201
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        202
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        203
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        204
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        38,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        190
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        191
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        192
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        193
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        194
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        195
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        196
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        197
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        198
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        199
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        200
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        201
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        202
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        203
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 2,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": -1,
+      "mapped_phase": "not_indexed",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        204
+      ],
+      "true_phase": "not_indexed",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": false
+    },
+    {
+      "coordinate": [
+        39,
+        205
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        206
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        207
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        208
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    },
+    {
+      "coordinate": [
+        39,
+        209
+      ],
+      "true_phase": "Iron bcc (old)",
+      "pred_cluster": 0,
+      "user_mapped_phase": "—",
+      "user_match": false,
+      "mapped_phaseid": 1,
+      "mapped_phase": "Iron bcc (old)",
+      "match": true
+    }
+  ]
+}

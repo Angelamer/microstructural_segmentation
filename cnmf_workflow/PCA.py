@@ -1,0 +1,958 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Main function to initiate PCA decomposition using the sklearn
+
+Licensed under GNU GPL3, see license file LICENSE_GPL3.
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA, IncrementalPCA
+from data_processing import signal_process
+from progress.bar import Bar
+import os
+import cv2
+import matplotlib.patches as mpatches
+from matplotlib.patches import Ellipse
+from scipy.stats import chi2
+from matplotlib.lines import Line2D
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+from matplotlib.patches import Rectangle
+from skimage.metrics import structural_similarity as ssim
+from typing import Iterable, Optional, Tuple, List
+from matplotlib.gridspec import GridSpec
+
+def _choose_pca_components_by_knee(explained_ratio: np.ndarray, min_comp: int = 2) -> int:
+    """
+    Choose the number of PCA components based on the "knee" of the cumulative explained variance curve.
+    A simple Kneedle-like heuristic: maximize (cumvar_norm - baseline),
+    where the baseline is a straight line from (0,0) to (1,1).
+    """
+    cum = np.cumsum(explained_ratio)
+    n = len(cum)
+    if n <= min_comp:
+        return n
+    x = np.linspace(0, 1, n)
+    baseline = x
+    cum_norm = (cum - cum.min()) / max(cum.max() - cum.min(), 1e-12)
+    gap = cum_norm - baseline
+    k = int(np.argmax(gap)) + 1  # components are 1-indexed
+    return max(k, min_comp)
+
+def run_PCA(
+    ROI,
+    components="auto",
+    h=200,
+    w=200,
+    slice_x=(0, 100),
+    slice_y=(0, 100),
+    *,
+    incremental=True,
+    batch_size=4096,
+    whiten=False,
+    random_state=0,
+    min_components=2,
+    max_components=None,
+    save_curve_path=None
+):
+    """
+    Perform Principal Component Analysis (PCA) on Kikuchi patterns within a Region of Interest (ROI),
+    automatically determining the optimal number of components using the knee point
+    of the cumulative explained variance curve.
+
+    Parameters
+    ----------
+    ROI : list[str]
+        List of file paths corresponding to Kikuchi pattern images to process.
+    components : int or "auto"
+        - If int, use the specified number of components.
+        - If "auto", determine the optimal number via the explained variance knee.
+    h, w : int
+        Original image height and width of Kikuchi patterns.
+    slice_x, slice_y : (int, int)
+        Cropping ranges for removing edge artifacts in the Kikuchi patterns.
+    incremental : bool, default=True
+        Whether to use IncrementalPCA (recommended for large datasets).
+    batch_size : int, default=4096
+        Batch size for IncrementalPCA fitting.
+    whiten : bool, default=False
+        Whether to whiten the PCA components (only for standard PCA).
+    random_state : int, default=0
+        Random seed for PCA reproducibility.
+    min_components : int, default=2
+        Minimum allowed number of components when automatically selected.
+    max_components : int or None, default=None
+        Maximum number of components to consider during auto selection.
+        Defaults to `min(256, n_samples, n_features)`.
+    save_curve_path : str or None, default=None
+        If provided, saves the cumulative explained variance plot at this path (no title, dpi=300).
+
+    Returns
+    -------
+    pca_scores : np.ndarray, shape (n_samples, k_selected)
+        PCA-transformed data (latent representations).
+    pca_model : PCA or IncrementalPCA
+        The fitted PCA model object, containing components and explained variance ratios.
+    k_selected : int
+        The actual number of components selected.
+    explained_variance_ratio_ : np.ndarray
+        Explained variance ratio for all fitted components (before truncation).
+    """
+
+    file_list = ROI
+    bar = Bar("Processing", max=len(file_list))
+    signal_processed = []
+
+    # Step 1 — Signal processing
+    for file in file_list:
+        bar.next()
+        vec = signal_process(
+            file, flag="ROI",
+            pattern_height=h, pattern_width=w,
+            slice_x=slice_x, slice_y=slice_y
+        )
+        signal_processed.append(vec)
+    bar.finish()
+
+    X = np.asarray(signal_processed, dtype=np.float32).reshape(len(file_list), -1)
+    n_samples, n_features = X.shape
+
+    # Step 2 — Fixed number of components
+    if components != "auto":
+        k_use = int(components)
+        if incremental:
+            pca_full = IncrementalPCA(n_components=k_use, batch_size=batch_size)
+            pca_full.fit(X)
+            scores = pca_full.transform(X)
+            evr_full = getattr(pca_full, "explained_variance_ratio_", None)
+            return scores, pca_full, k_use, evr_full
+        else:
+            pca_full = PCA(
+                n_components=k_use, svd_solver="auto", whiten=whiten,
+                random_state=random_state
+            )
+            scores = pca_full.fit_transform(X)
+            evr_full = pca_full.explained_variance_ratio_
+            return scores, pca_full, k_use, evr_full
+
+    # Step 3 — Automatic selection (find the knee point)
+    if max_components is None:
+        max_components = int(min(256, n_samples, n_features))
+    max_components = max(max_components, min_components)
+
+    if incremental:
+        pca_full = IncrementalPCA(n_components=max_components, batch_size=batch_size)
+        pca_full.fit(X)
+        evr_full = getattr(pca_full, "explained_variance_ratio_", None)
+    else:
+        pca_full = PCA(
+            n_components=max_components, svd_solver="auto", whiten=whiten,
+            random_state=random_state
+        )
+        pca_full.fit(X)
+        evr_full = pca_full.explained_variance_ratio_
+
+    if evr_full is None:
+        k_sel = max_components
+    else:
+        k_sel = _choose_pca_components_by_knee(evr_full, min_comp=min_components)
+
+    # Step 4 — Refit PCA for selected dimensionality
+    if incremental:
+        pca = IncrementalPCA(n_components=k_sel, batch_size=batch_size)
+        pca.fit(X)
+        pca_scores = pca.transform(X)
+    else:
+        pca = PCA(
+            n_components=k_sel, svd_solver="auto", whiten=whiten,
+            random_state=random_state
+        )
+        pca_scores = pca.fit_transform(X)
+
+    # Step 5 — Save cumulative explained variance plot (optional)
+    if save_curve_path:
+        os.makedirs(os.path.dirname(save_curve_path), exist_ok=True)
+        cum = np.cumsum(evr_full) if evr_full is not None else None
+        if cum is not None:
+            fig, ax = plt.subplots(figsize=(6, 4), dpi=300)
+            ax.plot(np.arange(1, len(cum) + 1), cum, marker="o")
+            ax.axvline(k_sel, linestyle="--")
+            ax.set_xlabel("Number of components")
+            ax.set_ylabel("Cumulative explained variance")
+            fig.tight_layout()
+            fig.savefig(save_curve_path, dpi=300, bbox_inches="tight")
+            plt.close(fig)
+
+    return pca_scores, pca, int(k_sel), evr_full
+
+
+def plot_explained_variance(pca):
+    """Plot the explained variance ratio and cumulative curve"""
+    explained_variance = pca.explained_variance_ratio_
+    cumulative_variance = np.cumsum(explained_variance)
+    
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(1, len(explained_variance)+1), explained_variance, 
+            alpha=0.5, align='center', label='Individual Explained Variance')
+    plt.step(range(1, len(cumulative_variance)+1), cumulative_variance, 
+            where='mid', label='Cumulative Explained Variance')
+    
+    plt.axhline(y=0.95, color='r', linestyle='--', label='95% Explained Variance')
+    plt.xlabel('Principal Component Index')
+    plt.ylabel('Explained Variance Ratio')
+    plt.title('PCA Explained Variance')
+    plt.legend(loc='best')
+    plt.grid(True)
+    plt.show()
+
+"""
+def _plot_pca(pca_scores, coord_dict, loc_roi):
+    
+    loc_roi = np.asarray(loc_roi)
+    assert loc_roi.shape[0] == pca_scores.shape[0], "make sure the number of samples/rows of pca scores the same with loc"
+    assert loc_roi.shape[1] == 2, "loc should be list of (n_samples, 2)"
+    
+    roi_labels = [coord_dict.get((x, y), -1)
+    for x, y in loc_roi]
+    
+    roi_labels = np.array(roi_labels)
+    
+    # corresponding phase mapping
+    name_map = {
+        1: 'Fe3O4',
+        2: 'FeO',
+        3: 'Fe'
+        }
+    
+    plt.figure(figsize=(10,8))
+    scatter = plt.scatter(pca_scores[:, 0], pca_scores[:, 1], c=roi_labels, cmap='Set1', alpha=0.7,edgecolors='k')
+    
+    
+    unique_ids = sorted(set(roi_labels.tolist()))
+    
+    # add legends
+    handles = []
+    for pid in unique_ids:
+        if pid in name_map:
+            color = scatter.cmap(scatter.norm(pid))
+            patch = mpatches.Patch(color=color, label=name_map[pid])
+            handles.append(patch)
+    plt.legend(handles=handles, title='Phase')
+    
+    
+    plt.xlabel("Principal Component 1")
+    plt.ylabel("Principal Component 2")
+    plt.title("PCA of EBSD Kikuchi Patterns by Phase index")
+    plt.show()
+"""
+def _plot_reference(ref_pos, loc_roi, ax, pca_scores, marker, label, dim):
+        if ref_pos is None or len(ref_pos) == 0:
+            return
+        
+        ref_indices = []
+        for pos in ref_pos:
+            idx = np.where((loc_roi[:, 0] == pos[0]) & (loc_roi[:, 1] == pos[1]))[0]
+            if len(idx) > 0:
+                ref_indices.append(idx[0])
+        
+        if len(ref_indices) > 0:
+            ref_pca = pca_scores[ref_indices]
+            if dim == 3:
+                ax.scatter(
+                    ref_pca[:, 0], ref_pca[:, 1], ref_pca[:, 2],
+                    s=150, marker=marker, c='gold', edgecolor='k',
+                    linewidth=1.5, zorder=10, label=label
+                )
+            else:
+                ax.scatter(
+                    ref_pca[:, 0], ref_pca[:, 1],
+                    s=150, marker=marker, c='gold', edgecolor='k',
+                    linewidth=1.5, zorder=10, label=label
+                )
+            
+def _add_confidence_ellipse(ax, data, color, alpha):
+    """Add the confidence ellipse for each category"""
+    if len(data) < 2: 
+        return 
+    
+    # Compute the ellipse parameters
+    cov = np.cov(data.T)
+    try:
+        lambda_, v = np.linalg.eigh(cov)
+        lambda_ = np.sqrt(lambda_)
+        chi = np.sqrt(chi2.ppf(0.95, 2))  # 95% confidence interval
+        
+        # Calculate ellipse angle
+        angle = np.degrees(np.arctan2(v[1, 0], v[0, 0]))
+        
+        # Plot the ellipse
+        ell = Ellipse(
+            xy=np.mean(data, axis=0),
+            width=lambda_[0] * chi * 2, 
+            height=lambda_[1] * chi * 2,
+            angle=angle,
+            edgecolor=color, 
+            facecolor='none', 
+            linestyle='--', 
+            alpha=alpha
+        )
+        ax.add_patch(ell)
+    except np.linalg.LinAlgError:
+        # Handle cases where covariance matrix is singular
+        pass
+def _plot_pca(pca_scores, coord_dict, loc_roi, dim=2, ref1_pos=None, ref2_pos=None, anomalies=None, ellipse_alpha=0.3):
+    """
+    Plot PCA scatter map of samples with optional annotations.
+
+    This function visualizes PCA scores (2D or 3D) of ROI samples and
+    overlays phase labels, reference points, anomalies, and confidence ellipses
+    for better interpretation of the data.
+
+    Args:
+        pca_scores (np.ndarray):
+            Array of PCA-transformed data of shape (n_samples, n_components).
+            Must have at least `dim` components.
+        coord_dict (dict):
+            Mapping from (x, y) coordinate tuples to phase IDs.
+        loc_roi (array-like):
+            ROI coordinates of shape (n_samples, 2).
+            Each row is (x, y).
+        dim (int, default=2):
+            Number of PCA dimensions to plot (2 or 3).
+        ref1_pos (list[tuple] or np.ndarray, optional):
+            Coordinates of reference component 1 (highlighted with '*').
+        ref2_pos (list[tuple] or np.ndarray, optional):
+            Coordinates of reference component 2 (highlighted with 'P').
+        anomalies (np.ndarray, optional):
+            PCA coordinates of anomalous points to highlight with 'X'.
+        ellipse_alpha (float, default=0.3):
+            Transparency level for confidence ellipses (only applied in 2D).
+        
+    """
+    assert dim in [2, 3]
+    assert pca_scores.shape[1] >= dim, f"pca_scores must have at least {dim} components."
+    
+    loc_roi = np.asarray(loc_roi)
+    assert loc_roi.shape[0] == pca_scores.shape[0], "make sure the number of samples/rows of pca scores the same with loc"
+    assert loc_roi.shape[1] == 2, "loc should be list of (n_samples, 2)"
+    
+    roi_labels = [coord_dict.get((x, y), -1)
+    for x, y in loc_roi]
+    
+    roi_labels = np.array(roi_labels)
+    
+    # corresponding phase mapping
+    name_map = {
+        1: 'Fe3O4',
+        2: 'FeO',
+        3: 'Fe'
+        }
+    phase_colors = {1: 'red', 2: 'blue', 3: 'green'}
+    default_color = 'gray'
+    
+    if dim == 3:
+        fig = plt.figure(figsize=(15, 10))
+        ax = fig.add_subplot(111, projection='3d')
+    else:
+        fig, ax = plt.subplots(figsize=(15, 10))
+    colors = []
+    for l in roi_labels:
+        if l in phase_colors:
+            colors.append(phase_colors[l])
+        else:
+            colors.append(default_color)
+    
+    # plot the main scatter
+    if dim == 3:
+        main_scatter = ax.scatter(
+            pca_scores[:, 0], pca_scores[:, 1], pca_scores[:, 2],
+            c=colors, alpha=0.7, edgecolors='k', label='Samples'
+        )
+    else:
+        main_scatter = ax.scatter(
+            pca_scores[:, 0], pca_scores[:, 1], 
+            c=colors, alpha=0.7, edgecolors='k', label='Samples'
+        )
+    # mark the reference point
+    _plot_reference(ref1_pos, loc_roi, ax, pca_scores, '*', 'Reference 1', dim=dim)
+    _plot_reference(ref2_pos, loc_roi, ax, pca_scores, 'P', 'Reference 2', dim=dim)
+    
+    
+    # plot the confidence ellipse (only for 2D)
+    if dim == 2:
+        for phase, color in phase_colors.items():
+            mask = (roi_labels == phase)
+            if mask.sum() > 1: 
+                _add_confidence_ellipse(
+                    ax, pca_scores[mask, :2], color, ellipse_alpha
+                )
+    
+    # anomalies plotting
+    if anomalies is not None:
+        if dim ==3:
+            ax.scatter(
+                    anomalies[:, 0], anomalies[:, 1], anomalies[:, 2],
+                    s=80, marker='X', c='none', 
+                    edgecolor='purple', label='Anomalies', linewidths=1.5
+                )
+        else:
+            ax.scatter(
+                anomalies[:, 0], anomalies[:, 1], 
+                s=80, marker='X', c='none', 
+                edgecolor='purple', label='Anomalies',linewidths=1.5
+            )
+    # legend 
+    legend_elements = []
+    existing_phases = [pid for pid in np.unique(roi_labels) 
+                    if pid in name_map and pid in phase_colors]
+    
+    for pid in sorted(existing_phases, key=lambda x: list(name_map.keys()).index(x)):
+        legend_elements.append(
+            Line2D([0], [0], marker='o', color='w', 
+                label=name_map[pid],
+                markerfacecolor=phase_colors[pid], 
+                markersize=10)
+        )
+    if ref1_pos is not None and len(ref1_pos) > 0:
+        legend_elements.append(
+            Line2D([0], [0], marker='*', color='k', label='Reference 1',
+                markerfacecolor='none', markersize=15)
+        )
+    
+    if ref2_pos is not None and len(ref2_pos) > 0:
+        legend_elements.append(
+            Line2D([0], [0], marker='P', color='k', label='Reference 2',
+                markerfacecolor='none', markersize=15)
+        )
+    if anomalies is not None and len(anomalies) > 0:
+        legend_elements.append(
+            Line2D([0], [0], marker='X', color='purple', label='Anomalies',
+                markerfacecolor='none', markersize=15)
+        )
+    if len([pid for pid in np.unique(roi_labels) if pid not in name_map]) > 0:
+        legend_elements.append(
+            Line2D([0], [0], marker='o', color='w', 
+                label='Undefined Phase',
+                markerfacecolor=default_color, 
+                markersize=10)
+        ) 
+    
+    if legend_elements:
+        ax.legend(handles=legend_elements, title='Legend')
+    ax.set_xlabel("Principal Component 1"), ax.set_ylabel("Principal Component 2")
+    if dim == 3:
+        ax.set_zlabel("Principal Component 3")
+    ax.set_title("PCA Visualization with Annotations")
+    plt.tight_layout()
+    plt.show()
+
+# detect the anomalies out of the confidence eclipse
+def detect_anomalies_pca(pca_scores, coord_to_label, loc_roi):
+    """
+    Detect anomalies in PCA-transformed data using Mahalanobis distance.
+    
+    Anomalies are identified as points that lie outside the 95% confidence 
+    ellipse of each manually defined phase/group. The phase category for each 
+    point is obtained from `coord_to_label`.
+    
+    Parameters
+    ----------
+    pca_scores : np.ndarray
+        Array of shape (n_samples, n_components) representing PCA-transformed 
+        features of each sample.
+    coord_to_label : dict
+        Dictionary mapping coordinates (x, y) to a phase/cluster label. Points 
+        not in the dictionary are assigned label -1.
+    loc_roi : array-like
+        Array of coordinates of shape (n_samples, 2), corresponding to the 
+        rows in `pca_scores`.
+    
+    Returns
+    -------
+    anomalies : np.ndarray or None
+        PCA scores of the detected anomalies. Shape (n_anomalies, n_components).
+        Returns None if no anomalies are detected.
+    anomalies_coords : np.ndarray or None
+        Coordinates (x, y) of the detected anomalies. Shape (n_anomalies, 2).
+        Returns None if no anomalies are detected.
+    anomalies_coords_to_labels : dict or None
+        Dictionary mapping each anomaly coordinate (x, y) to its phase/cluster label.
+        Returns None if no anomalies are detected.
+    """
+    loc_roi = np.asarray(loc_roi)
+    labels = np.array([coord_to_label.get((x, y), -1) for x, y in loc_roi])
+    n_dim = pca_scores.shape[1]
+    anomalies = []
+    anomalies_coords = []
+    anomalies_coords_to_labels = {}
+    
+    for phase in np.unique(labels):
+        mask = (labels == phase)
+        if mask.sum() < 2: continue
+        
+        # Mahalanobis Distance
+        data = pca_scores[mask]
+        coords = loc_roi[mask]
+        cov = np.cov(data.T)
+        mean = np.mean(data, axis=0)
+        try:
+            inv_cov = np.linalg.inv(cov)
+        except np.linalg.LinAlgError:
+            inv_cov = np.linalg.pinv(cov)
+        
+        diff = data - mean
+        distances = np.sum(diff @ inv_cov * diff, axis=1)
+        threshold = chi2.ppf(0.95, n_dim)  # 95% confidence interval
+        
+        phase_anomaly_mask = distances > threshold
+        # append the pca scores of the anomalies
+        anomalies.append(data[phase_anomaly_mask])
+        anomalies_coords.append(coords[phase_anomaly_mask])
+        
+        # Map coordinates to labels
+        for coord in coords[phase_anomaly_mask]:
+            anomalies_coords_to_labels[tuple(coord)] = phase
+    if anomalies:
+        anomalies = np.vstack(anomalies)
+        anomalies_coords = np.vstack(anomalies_coords)
+        
+    else:
+        anomalies = None
+        anomalies_coords = None
+        anomalies_coords_to_labels = None
+    return anomalies, anomalies_coords, anomalies_coords_to_labels
+
+
+# denote the anomalies (box)
+def _add_boxes(loc_roi, coords, ax, color, linewidth):
+    # find the relative coordinates of reference or anomalies within roi
+    # reshape loc_roi
+    loc_roi_reshaped = loc_roi.reshape((31, 31, 2))
+
+    # map the coordinates list to local positions
+    coord_to_index = {}
+    for i in range(31):
+        for j in range(31):
+            coord = tuple(loc_roi_reshaped[i, j])
+            coord_to_index[coord] = (i, j)
+    # search the positions of interested anomalies/ reference within roi
+    positions = []
+    for each in coords:
+        key = tuple(each)
+        if key in coord_to_index:
+            positions.append(coord_to_index[key])
+        else:
+            positions.append(None) 
+
+    if positions is not None:
+        for (x, y) in positions:
+            row = int(y)
+            col = int(x)
+            rect = Rectangle(
+                (col-0.5, row-0.5), 1, 1, 
+                linewidth=linewidth, 
+                edgecolor=color, 
+                facecolor='none'
+            )
+            ax.add_patch(rect)
+    
+    
+def plot_weight_map_pca(pca_scores, loc_roi, anomalies_coords=None, ref1_pos=None, ref2_pos=None, component=0):
+    """Plot the weight map with locations of references and anomalies"""
+    loc_roi = np.asarray(loc_roi)
+    weight_map = np.reshape(pca_scores, (31, 31, 2))
+    
+    # Obtain the specific component of weight
+    data = np.transpose(weight_map[:, :, component])
+    
+    # colormap
+    colors = ["#2ca02c", "#ffffff", "#d62728"]  # green-white-red
+    
+    abs_max = np.max(np.abs(pca_scores))
+    norm = TwoSlopeNorm(vmin=-abs_max, vcenter=0, vmax=abs_max)
+
+    cmap_custom = LinearSegmentedColormap.from_list("custom_diverging", colors)
+    
+    
+    plt.figure(figsize=(12, 10))
+    ax = plt.gca()
+    
+    im = ax.imshow(data, cmap=cmap_custom, norm=norm, interpolation='nearest')
+    legend_elements = []
+    # denote the anomalies
+    if anomalies_coords is not None and len(anomalies_coords) > 0:
+        legend_elements.append(
+            Line2D([0], [0], color='black', lw=2, label='Anomalies')
+        )
+        _add_boxes(loc_roi, anomalies_coords, ax, 'black', 2)
+    
+    # the reference points
+    if ref1_pos is not None and len(ref1_pos) > 0:
+        legend_elements.append(
+            Line2D([0], [0], color='red', lw=3, label='Reference 1')
+        )
+        _add_boxes(loc_roi, ref1_pos, ax,  'red', 3)
+    
+    if ref2_pos is not None and len(ref2_pos) > 0:
+        legend_elements.append(
+            Line2D([0], [0], color='blue', lw=3, label='Reference 2')
+        )
+        _add_boxes(loc_roi, ref2_pos, ax, 'blue', 3)  
+        
+    if legend_elements:
+        ax.legend(handles=legend_elements, loc='lower center',  bbox_to_anchor=(0.5, -0.1), ncol=3)
+    # color bar setting
+    cbar = plt.colorbar(im)
+    cbar.set_ticks([-abs_max, 0, abs_max])
+    cbar.ax.set_yticklabels([
+        f'pca score = {-abs_max}\n(green)', 
+        'pca score = 0\n(white)', 
+        f'pca score = {abs_max}\n(red)'
+    ], fontsize=10)
+
+    
+    
+    plt.title(f"Component {component+1} Weight Map with Annotations")
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+
+
+def reconstruct_pca_signals(
+    file_list,
+    loc_array,                 # (N, 2) integer coords aligned with file_list
+    pca_scores,                # (N, K)
+    pca,                       # fitted sklearn PCA (has mean_ and components_)
+    output_dir,
+    pattern_height=400,
+    pattern_width=400,
+    slice_x=(0, 100),
+    slice_y=(0, 100),
+    compare_coords=None        # e.g. [(10,12), (25,3)] — only these cached for plotting
+):
+    """
+    Reconstruct ROI images from a trained PCA model, save reconstructions, and
+    return residual stats. Optionally cache selected coordinates for later plotting.
+
+    Notes on ROI:
+      - `slice_x`, `slice_y` are **half-open** index ranges [start, end), like NumPy slicing.
+        Height = slice_y[1] - slice_y[0], width = slice_x[1] - slice_x[0].
+      - `signal_process(file, flag="ROI", pattern_height, pattern_width, slice_x, slice_y)`
+        must return the ROI as a flat vector of length height*width.
+
+    Returns:
+      residuals        : list[np.ndarray] of shape (H, W)
+      residual_norms   : np.ndarray, shape (N,)
+      rmses            : np.ndarray, shape (N,)
+      ssims            : np.ndarray, shape (N,)
+      compare_cache    : list[dict] with keys:
+                         {'xy','orig','recon','res','rmse','ssim','name'}
+                         (only for coords in `compare_coords`)
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    recon_dir = os.path.join(output_dir, "reconstructed")
+    os.makedirs(recon_dir, exist_ok=True)
+
+    # map (x,y) -> index; ensure ints to match user-provided tuples
+    loc_int = np.asarray(loc_array, dtype=int)
+    coord_to_idx = {(int(x), int(y)): i for i, (x, y) in enumerate(loc_int)}
+
+    # normalize compare list into a set of coords present in loc_array
+    compare_set = set()
+    if compare_coords:
+        for xy in compare_coords:
+            xy_int = (int(xy[0]), int(xy[1]))
+            if xy_int in coord_to_idx:
+                compare_set.add(xy_int)
+            else:
+                print(f"[warn] compare coord {xy_int} not found in loc_array; skipping.")
+
+    # ROI size (half-open ranges)
+    height = int(slice_y[1] - slice_y[0])
+    width  = int(slice_x[1] - slice_x[0])
+
+    residuals = []
+    residual_norms = np.zeros(len(file_list), dtype=float)
+    rmses = np.zeros(len(file_list), dtype=float)
+    ssims = np.zeros(len(file_list), dtype=float)
+    compare_cache = []
+
+    for i, file_path in enumerate(file_list):
+        # ---- load & preprocess original ROI ----
+        orig_vector = signal_process(
+            file_path,
+            flag="ROI",
+            pattern_height=pattern_height,
+            pattern_width=pattern_width,
+            slice_x=slice_x,
+            slice_y=slice_y
+        ).flatten()
+        orig_img = orig_vector.reshape(height, width)
+
+        # ---- PCA reconstruction ----
+        recon_vector = pca.mean_ + np.dot(pca_scores[i], pca.components_)
+        recon_img = recon_vector.reshape(height, width)
+
+        # ---- residual + metrics ----
+        res = orig_img - recon_img
+        residuals.append(res)
+
+        rn = float(np.linalg.norm(res))
+        residual_norms[i] = rn
+        rmses[i] = rn / np.sqrt(height * width)
+
+        omin, omax = float(orig_img.min()), float(orig_img.max())
+        dr = max(1e-8, omax - omin)
+        o01 = np.clip((orig_img - omin) / dr, 0, 1)
+        r01 = np.clip((recon_img - omin) / dr, 0, 1)
+        ssims[i] = ssim(o01, r01, data_range=1.0)
+
+        # ---- save reconstructed as 8-bit grayscale ----
+        rmin, rmax = recon_img.min(), recon_img.max()
+        if rmax > rmin:
+            recon_norm01 = (recon_img - rmin) / (rmax - rmin)
+        else:
+            recon_norm01 = np.zeros_like(recon_img)
+        img_8bit = (np.clip(recon_norm01, 0, 1) * 255).astype(np.uint8)
+
+        file_name = os.path.basename(file_path)
+        recon_name = f"reconstructed_{file_name}"
+        cv2.imwrite(os.path.join(recon_dir, recon_name), img_8bit)
+
+        # ---- cache comparison triplet if requested ----
+        xy = (int(loc_int[i, 0]), int(loc_int[i, 1]))
+        if xy in compare_set:
+            compare_cache.append({
+                'xy': xy,
+                'orig': orig_img,
+                'recon': recon_img,
+                'res': res,
+                'rmse': float(rmses[i]),
+                'ssim': float(ssims[i]),
+                'name': file_name
+            })
+
+    print(f"Done. Reconstructed images saved to: {recon_dir}")
+    return residuals, residual_norms, rmses, ssims, compare_cache
+
+
+def plot_pca_comparisons(compare_cache):
+    """
+    Show side-by-side (Original / Reconstructed / Residual) for the items
+    cached by `reconstruct_pca_signals` (only those coords you requested).
+
+    Args:
+      compare_cache: list of dicts with keys:
+        {'xy','orig','recon','res','rmse','ssim','name'}
+    """
+    if not compare_cache:
+        print("[info] No comparisons to show (compare_cache is empty).")
+        return
+
+    for item in compare_cache:
+        orig_img = item['orig']
+        recon_img = item['recon']
+        res_img = item['res']
+        xy = item['xy']
+
+        fig, axes = plt.subplots(1, 3, figsize=(9, 3))
+        for ax, img, title in zip(
+            axes,
+            [orig_img, recon_img, res_img],
+            ["Original", "Reconstructed", "Residual"]
+        ):
+            ax.imshow(img, cmap='gray')
+            ax.set_title(title)
+            ax.axis('off')
+
+        fig.suptitle(
+            f"(x={xy[0]}, y={xy[1]})  RMSE={item['rmse']:.4f}  SSIM={item['ssim']:.4f}"
+        )
+        plt.tight_layout()
+        plt.show()
+
+def _slice_shape(slice_x: Tuple[int, int], slice_y: Tuple[int, int]) -> Tuple[int, int]:
+    """Return (rows, cols) given (x,y) slice ranges (start, end)."""
+    sx = slice_x[1] - slice_x[0]
+    sy = slice_y[1] - slice_y[0]
+    if sx <= 0 or sy <= 0:
+        raise ValueError("slice_x and slice_y must satisfy end > start.")
+    return sy, sx
+
+
+def get_pca_components_reshaped(pca, slice_x: Tuple[int, int], slice_y: Tuple[int, int]) -> np.ndarray:
+    """Return PCA components reshaped to (n_components, len(slice_y), len(slice_x))."""
+    sy, sx = _slice_shape(slice_x, slice_y)
+    n_features_expected = sx * sy
+    comps = np.asarray(pca.components_)
+    if comps.shape[1] != n_features_expected:
+        raise ValueError(
+            f"Component features ({comps.shape[1]}) do not match slice size ({n_features_expected})."
+        )
+    return comps.reshape(comps.shape[0], sy, sx)
+
+
+def _normalize_pc_indices(
+    pcs: Optional[Iterable[int]], start: Optional[int], end: Optional[int], total: int
+) -> List[int]:
+    """Convert requested PC indices (1-based) to 0-based list."""
+    if pcs is not None:
+        zero_based = [int(i) - 1 for i in pcs]
+    elif start is not None and end is not None:
+        zero_based = list(range(start - 1, end))
+    else:
+        zero_based = list(range(total))
+
+    for i in zero_based:
+        if i < 0 or i >= total:
+            raise IndexError(f"PC index {i} out of range (valid: 1..{total})")
+    return zero_based
+
+
+def plot_pca_components_heatmaps(
+    pca,
+    slice_x: Tuple[int, int],
+    slice_y: Tuple[int, int],
+    pcs: Optional[Iterable[int]] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    cmap: str = "gray",
+    shared_scale: bool = True,
+    save: bool = False,
+    save_name: Optional[str] = None,
+    dpi: int = 300,
+    save_individual: bool = False,
+    save_dir: str = ".",
+) -> None:
+    """
+    Plot selected PCA components as grayscale heatmaps, horizontally aligned with a single colorbar.
+
+    Parameters
+    ----------
+    save : bool, default=False
+        Save the combined figure.
+    save_name : str, optional
+        Filename for the combined figure. Default "pca_components.png".
+    dpi : int, default=300
+        Resolution for saving.
+    save_individual : bool, default=False
+        If True, save each PC as an individual file (e.g., Component_PC1.png).
+    save_dir : str, default="."
+        Directory to save files (created if not exists).
+    """
+    comp_imgs = get_pca_components_reshaped(pca, slice_x, slice_y)
+    total = comp_imgs.shape[0]
+    idxs = _normalize_pc_indices(pcs, start, end, total)
+
+    if shared_scale:
+        vmin, vmax = np.min(comp_imgs[idxs]), np.max(comp_imgs[idxs])
+    else:
+        vmin = vmax = None
+
+    n = len(idxs)
+    fig, axes = plt.subplots(1, n, figsize=(2.5 * n + 0.8, 3), constrained_layout=True)
+    if n == 1:
+        axes = [axes]
+
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    for ax, i in zip(axes, idxs):
+        im = ax.imshow(comp_imgs[i], cmap=cmap, origin="lower", vmin=vmin, vmax=vmax)
+        ax.set_title(f"PC {i+1}")
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        if save_individual:
+            fname = os.path.join(save_dir, f"Component_PC{i+1}.png")
+            plt.imsave(fname, comp_imgs[i], cmap=cmap, vmin=vmin, vmax=vmax, dpi=dpi)
+            print(f"💾 Saved individual component: {fname}")
+
+    cbar = fig.colorbar(im, ax=axes, location="right", pad=0.02, fraction=0.046, shrink=0.98)
+    cbar.set_label("Component weight", rotation=270, labelpad=15)
+
+    if save:
+        if save_name is None:
+            save_name = "pca_components.png"
+        fname = os.path.join(save_dir, save_name)
+        fig.savefig(fname, dpi=dpi, bbox_inches="tight")
+        print(f"✅ Combined figure saved to {fname} (dpi={dpi})")
+
+    plt.show()
+
+
+def plot_pca_scores_maps(
+    scores: np.ndarray,
+    grid_shape: Tuple[int, int],
+    pcs: Optional[Iterable[int]] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    cmap: str = "rainbow",
+    shared_scale: bool = True,
+    save: bool = False,
+    save_name: Optional[str] = None,
+    dpi: int = 300,
+    save_individual: bool = False,
+    save_dir: str = ".",
+) -> None:
+    """
+    Plot selected PCA scores columns reshaped to (height, width) heatmaps.
+
+    Parameters
+    ----------
+    save : bool, default=False
+        Save the combined figure.
+    save_name : str, optional
+        Filename for the combined figure. Default "pca_scores.png".
+    dpi : int, default=300
+        Resolution for saving.
+    save_individual : bool, default=False
+        If True, save each PC score map separately (e.g., Score_PC1.png).
+    save_dir : str, default="."
+        Directory to save files (created if not exists).
+    """
+    h, w = grid_shape
+    n_samples, n_components = scores.shape
+    if h * w != n_samples:
+        raise ValueError(f"grid_shape {grid_shape} does not match n_samples={n_samples}")
+
+    idxs = _normalize_pc_indices(pcs, start, end, n_components)
+
+    if shared_scale:
+        vmin, vmax = np.min(scores[:, idxs]), np.max(scores[:, idxs])
+    else:
+        vmin = vmax = None
+
+    n = len(idxs)
+    fig, axes = plt.subplots(1, n, figsize=(2.5 * n + 0.8, 3), constrained_layout=True)
+    if n == 1:
+        axes = [axes]
+
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    for ax, i in zip(axes, idxs):
+        img = scores[:, i].reshape(h, w)
+        im = ax.imshow(img, cmap=cmap, origin="lower", vmin=vmin, vmax=vmax)
+        ax.set_title(f"PC {i+1}")
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        if save_individual:
+            fname = os.path.join(save_dir, f"Score_PC{i+1}.png")
+            plt.imsave(fname, img, cmap=cmap, vmin=vmin, vmax=vmax, dpi=dpi)
+            print(f"💾 Saved individual score map: {fname}")
+    
+    cbar = fig.colorbar(im, ax=axes, location="right", pad=0.02, fraction=0.046, shrink=0.98)
+    cbar.set_label("PCA scores", rotation=270, labelpad=15)
+
+    if save:
+        if save_name is None:
+            save_name = "pca_scores.png"
+        fname = os.path.join(save_dir, save_name)
+        fig.savefig(fname, dpi=dpi, bbox_inches="tight")
+        print(f"✅ Combined figure saved to {fname} (dpi={dpi})")
+
+    plt.show()
